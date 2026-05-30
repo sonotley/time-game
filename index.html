@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tell the Time</title>
+<style>
+  :root {
+    --bg: #fdf6e3;
+    --panel: #ffffff;
+    --ink: #2b2b2b;
+    --muted: #8a8a8a;
+    --accent: #4a7bd6;
+    --past: #7fc97f;
+    --to: #6fa8dc;
+    --good: #2e8b57;
+    --bad: #c0392b;
+    --shadow: 0 2px 6px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Comic Sans MS", "Chalkboard SE", "Trebuchet MS", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+  header {
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  h1 {
+    margin: 0;
+    font-size: 24px;
+    color: var(--accent);
+  }
+  #stars-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 18px;
+  }
+  #stars-row {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    max-width: 320px;
+  }
+  .star { font-size: 22px; }
+  main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 0 20px 40px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  #clock-wrap {
+    flex: 0 0 auto;
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  svg.clock {
+    width: min(80vw, 420px);
+    height: min(80vw, 420px);
+    display: block;
+  }
+  #panel {
+    flex: 1 1 320px;
+    max-width: 480px;
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  .step-label {
+    color: var(--muted);
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .question {
+    font-size: 20px;
+    margin: 6px 0 16px;
+    line-height: 1.35;
+  }
+  .answers {
+    display: grid;
+    gap: 8px;
+  }
+  .answers.grid-12 { grid-template-columns: repeat(3, 1fr); }
+  .answers.grid-6  { grid-template-columns: repeat(3, 1fr); }
+  .answers.grid-2  { grid-template-columns: 1fr 1fr; }
+  .answers.single  { grid-template-columns: 1fr; }
+  button.ans {
+    padding: 14px 8px;
+    font-size: 17px;
+    font-family: inherit;
+    border: 2px solid #cfd8dc;
+    background: #fafafa;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.05s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  button.ans:hover { background: #eef4ff; border-color: var(--accent); }
+  button.ans:active { transform: scale(0.97); }
+  button.ans.correct { background: #d6f5d6; border-color: var(--good); }
+  button.ans.wrong   { background: #f9d6d2; border-color: var(--bad); animation: shake 0.3s; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  .hint {
+    min-height: 22px;
+    margin-top: 14px;
+    font-size: 15px;
+    color: var(--bad);
+  }
+  .hint.ok { color: var(--good); }
+  .reveal {
+    text-align: center;
+    padding: 18px 8px 8px;
+  }
+  .reveal .big {
+    font-size: 32px;
+    color: var(--accent);
+    margin: 6px 0 18px;
+    line-height: 1.2;
+  }
+  .reveal .got-star {
+    font-size: 22px;
+    color: var(--good);
+    margin-bottom: 8px;
+  }
+  button.next {
+    font-family: inherit;
+    font-size: 18px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 22px;
+    cursor: pointer;
+  }
+  button.next:hover { background: #3a6ac2; }
+
+  /* SVG hand fading */
+  .hand { transition: opacity 0.25s ease; }
+  .hand.dim { opacity: 0.18; }
+  .overlay { transition: opacity 0.25s ease; opacity: 0; pointer-events: none; }
+  .overlay.show { opacity: 1; }
+
+  @media (max-width: 700px) {
+    main { padding: 0 12px 30px; }
+    #panel { padding: 16px; }
+    .question { font-size: 18px; }
+    button.ans { font-size: 16px; padding: 12px 6px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tell the Time</h1>
+  <div id="stars-bar">
+    <span>Stars: <strong id="star-count">0</strong></span>
+    <span id="stars-row" aria-label="earned stars"></span>
+  </div>
+</header>
+<main>
+  <div id="clock-wrap">
+    <svg class="clock" viewBox="0 0 400 400" aria-label="analog clock">
+      <!-- Past/To shading overlay -->
+      <g id="overlay-halves" class="overlay">
+        <path d="M 200 200 L 200 30 A 170 170 0 0 1 200 370 Z" fill="#7fc97f" opacity="0.22"/>
+        <path d="M 200 200 L 200 370 A 170 170 0 0 1 200 30 Z" fill="#6fa8dc" opacity="0.22"/>
+        <text x="290" y="208" text-anchor="middle" font-size="22" fill="#3a8a3a" font-weight="bold">past</text>
+        <text x="110" y="208" text-anchor="middle" font-size="22" fill="#2a5fa0" font-weight="bold">to</text>
+      </g>
+
+      <!-- Clock face -->
+      <circle cx="200" cy="200" r="180" fill="#ffffff" stroke="#3a3a3a" stroke-width="4"/>
+
+      <!-- Tick marks -->
+      <g id="ticks"></g>
+
+      <!-- Numerals -->
+      <g id="numerals" font-size="26" font-weight="bold" text-anchor="middle" fill="#2b2b2b"></g>
+
+      <!-- Five-minute counter labels overlay -->
+      <g id="overlay-counts" class="overlay" font-size="18" text-anchor="middle" font-weight="bold"></g>
+
+      <!-- Hour hand -->
+      <g id="hour-hand" class="hand" transform="rotate(0 200 200)">
+        <line x1="200" y1="200" x2="200" y2="120" stroke="#222" stroke-width="10" stroke-linecap="round"/>
+      </g>
+      <!-- Minute hand -->
+      <g id="minute-hand" class="hand" transform="rotate(0 200 200)">
+        <line x1="200" y1="200" x2="200" y2="70" stroke="#444" stroke-width="6" stroke-linecap="round"/>
+      </g>
+      <!-- Centre dot -->
+      <circle cx="200" cy="200" r="7" fill="#222"/>
+    </svg>
+  </div>
+
+  <div id="panel">
+    <div class="step-label" id="step-label">Step 1 of 4</div>
+    <div class="question" id="question"></div>
+    <div class="answers" id="answers"></div>
+    <div class="hint" id="hint"></div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+const HOUR_NAMES = ['twelve','one','two','three','four','five',
+                    'six','seven','eight','nine','ten','eleven','twelve'];
+const BLOCK_WORDS = {1:'five', 2:'ten', 3:'quarter', 4:'twenty', 5:'twenty-five', 6:'half'};
+
+const state = {
+  hour: 0,
+  minute: 0,
+  step: 1,
+  stars: 0,
+  clockPerfect: true,
+};
+
+// ------- SVG one-time setup -------
+function buildTicks() {
+  const g = document.getElementById('ticks');
+  for (let i = 0; i < 60; i++) {
+    const isMajor = (i % 5 === 0);
+    const angle = i * 6 * Math.PI / 180;
+    const r1 = isMajor ? 160 : 168;
+    const r2 = 176;
+    const x1 = 200 + r1 * Math.sin(angle);
+    const y1 = 200 - r1 * Math.cos(angle);
+    const x2 = 200 + r2 * Math.sin(angle);
+    const y2 = 200 - r2 * Math.cos(angle);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y2);
+    line.setAttribute('stroke', '#3a3a3a');
+    line.setAttribute('stroke-width', isMajor ? 3 : 1.5);
+    g.appendChild(line);
+  }
+}
+function buildNumerals() {
+  const g = document.getElementById('numerals');
+  for (let n = 1; n <= 12; n++) {
+    const angle = n * 30 * Math.PI / 180;
+    const x = 200 + 140 * Math.sin(angle);
+    const y = 200 - 140 * Math.cos(angle) + 9; // +9 for vertical centring
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', x);
+    t.setAttribute('y', y);
+    t.textContent = n;
+    g.appendChild(t);
+  }
+}
+buildTicks();
+buildNumerals();
+
+// ------- Clock hand rendering -------
+function setHands() {
+  const hourAngle = ((state.hour % 12) + state.minute / 60) * 30;
+  const minuteAngle = state.minute * 6;
+  document.getElementById('hour-hand').setAttribute('transform', `rotate(${hourAngle} 200 200)`);
+  document.getElementById('minute-hand').setAttribute('transform', `rotate(${minuteAngle} 200 200)`);
+}
+
+function setHandHighlight(step) {
+  const hh = document.getElementById('hour-hand');
+  const mh = document.getElementById('minute-hand');
+  hh.classList.remove('dim');
+  mh.classList.remove('dim');
+  if (step === 1) {
+    mh.classList.add('dim');
+  } else if (step === 2 || step === 3) {
+    hh.classList.add('dim');
+  }
+}
+
+function setOverlays(step) {
+  const halves = document.getElementById('overlay-halves');
+  const counts = document.getElementById('overlay-counts');
+  halves.classList.toggle('show', step === 2);
+  counts.classList.toggle('show', step === 3);
+
+  // Rebuild count labels for current direction
+  counts.innerHTML = '';
+  if (step === 3) {
+    const past = state.minute <= 30;
+    const blocks = past ? state.minute / 5 : (60 - state.minute) / 5;
+    // Show labels 1..blocks along the relevant arc
+    for (let i = 1; i <= blocks; i++) {
+      const minuteMark = past ? i * 5 : 60 - i * 5;
+      const angle = minuteMark * 6 * Math.PI / 180;
+      const r = 120;
+      const x = 200 + r * Math.sin(angle);
+      const y = 200 - r * Math.cos(angle) + 6;
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', x);
+      t.setAttribute('y', y);
+      t.setAttribute('fill', past ? '#3a8a3a' : '#2a5fa0');
+      t.textContent = i;
+      counts.appendChild(t);
+    }
+  }
+}
+
+// ------- Phrase assembly -------
+function phrase(hour, minute) {
+  const past = minute <= 30;
+  const blocks = past ? minute / 5 : (60 - minute) / 5;
+  const refHour = past ? hour : (hour % 12) + 1;
+  return `${BLOCK_WORDS[blocks]} ${past ? 'past' : 'to'} ${HOUR_NAMES[refHour]}`;
+}
+
+// ------- Step rendering -------
+function render() {
+  setHands();
+  setHandHighlight(state.step);
+  setOverlays(state.step);
+  document.getElementById('step-label').textContent = state.step <= 4 ? `Step ${state.step} of 4` : '';
+  document.getElementById('hint').textContent = '';
+  document.getElementById('hint').classList.remove('ok');
+
+  if (state.step === 1) renderStep1();
+  else if (state.step === 2) renderStep2();
+  else if (state.step === 3) renderStep3();
+  else renderStep4();
+}
+
+function clearAnswers(cls) {
+  const a = document.getElementById('answers');
+  a.className = 'answers ' + (cls || '');
+  a.innerHTML = '';
+  return a;
+}
+
+function makeButton(label, onClick) {
+  const b = document.createElement('button');
+  b.className = 'ans';
+  b.textContent = label;
+  b.addEventListener('click', () => onClick(b));
+  return b;
+}
+
+function wrongFeedback(btn, hintMsg) {
+  btn.classList.add('wrong');
+  state.clockPerfect = false;
+  const hint = document.getElementById('hint');
+  hint.classList.remove('ok');
+  hint.textContent = hintMsg;
+  setTimeout(() => btn.classList.remove('wrong'), 350);
+}
+
+function rightFeedback(btn) {
+  btn.classList.add('correct');
+  // disable all answer buttons
+  document.querySelectorAll('#answers button.ans').forEach(b => b.disabled = true);
+}
+
+// --- Step 1: which two hours is the hour hand between? ---
+function renderStep1() {
+  document.getElementById('question').textContent =
+    'Look at the SHORT hand (the hour hand). Which two numbers is it between?';
+  const a = clearAnswers('grid-12');
+  for (let n = 1; n <= 12; n++) {
+    const next = (n % 12) + 1;
+    a.appendChild(makeButton(`${n} → ${next}`, (btn) => {
+      const correctLower = state.hour;
+      if (n === correctLower) {
+        rightFeedback(btn);
+        document.getElementById('hint').classList.add('ok');
+        document.getElementById('hint').textContent = 'Yes! The short hand is between those two.';
+        setTimeout(() => { state.step = 2; render(); }, 700);
+      } else {
+        wrongFeedback(btn, 'Not quite. Find the SHORT hand and look at which two numbers it points between.');
+      }
+    }));
+  }
+}
+
+// --- Step 2: past or to? ---
+function renderStep2() {
+  document.getElementById('question').textContent =
+    'Now the LONG hand (the minute hand). Is it on the past side (right) or the to side (left)?';
+  const a = clearAnswers('grid-2');
+  const correct = state.minute <= 30 ? 'past' : 'to';
+  const onClick = (choice) => (btn) => {
+    if (choice === correct) {
+      rightFeedback(btn);
+      document.getElementById('hint').classList.add('ok');
+      document.getElementById('hint').textContent =
+        correct === 'past' ? 'Right — the long hand is on the past side.' :
+                             'Right — the long hand is on the to side.';
+      setTimeout(() => { state.step = 3; render(); }, 700);
+    } else {
+      wrongFeedback(btn,
+        'Look at the long hand: if it is on the RIGHT half of the clock it is past, if on the LEFT it is to.');
+    }
+  };
+  a.appendChild(makeButton('← To',   onClick('to')));
+  a.appendChild(makeButton('Past →', onClick('past')));
+}
+
+// --- Step 3: how many five-minute blocks? ---
+function renderStep3() {
+  const past = state.minute <= 30;
+  const correct = past ? state.minute / 5 : (60 - state.minute) / 5;
+  document.getElementById('question').textContent =
+    past
+      ? 'Starting from 12 and going clockwise, how many five-minute steps to the long hand?'
+      : 'Starting from 12 and going anticlockwise, how many five-minute steps to the long hand?';
+  const a = clearAnswers('grid-6');
+  for (let n = 1; n <= 6; n++) {
+    a.appendChild(makeButton(String(n), (btn) => {
+      if (n === correct) {
+        rightFeedback(btn);
+        document.getElementById('hint').classList.add('ok');
+        document.getElementById('hint').textContent = `Yes! ${n} five-minute step${n>1?'s':''}.`;
+        setTimeout(() => { state.step = 4; render(); }, 700);
+      } else {
+        wrongFeedback(btn,
+          'Count carefully: each big number is 5 minutes. Start at 12 and count in fives.');
+      }
+    }));
+  }
+}
+
+// --- Step 4: assemble and reveal ---
+function renderStep4() {
+  document.getElementById('step-label').textContent = 'All four steps!';
+  document.getElementById('question').textContent = 'Put it all together:';
+  const a = clearAnswers('single');
+  const reveal = document.createElement('div');
+  reveal.className = 'reveal';
+
+  const big = document.createElement('div');
+  big.className = 'big';
+  big.textContent = phrase(state.hour, state.minute);
+  reveal.appendChild(big);
+
+  if (state.clockPerfect) {
+    state.stars += 1;
+    addStar();
+    document.getElementById('star-count').textContent = state.stars;
+    const sm = document.createElement('div');
+    sm.className = 'got-star';
+    sm.textContent = '⭐ You earned a star!';
+    reveal.appendChild(sm);
+    chime();
+  } else {
+    const sm = document.createElement('div');
+    sm.className = 'got-star';
+    sm.style.color = 'var(--muted)';
+    sm.textContent = 'Nice work finishing — try the next one for a star!';
+    reveal.appendChild(sm);
+  }
+
+  const next = document.createElement('button');
+  next.className = 'next';
+  next.textContent = 'Next clock →';
+  next.addEventListener('click', newClock);
+  reveal.appendChild(next);
+
+  a.appendChild(reveal);
+}
+
+// ------- Stars row + ding -------
+function addStar() {
+  const s = document.createElement('span');
+  s.className = 'star';
+  s.textContent = '⭐';
+  document.getElementById('stars-row').appendChild(s);
+}
+
+let audioCtx = null;
+function chime() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, t0);
+    osc.frequency.exponentialRampToValueAtTime(1320, t0 + 0.18);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.4);
+  } catch (e) { /* audio is optional */ }
+}
+
+// ------- New round -------
+function newClock() {
+  state.hour = 1 + Math.floor(Math.random() * 12);
+  state.minute = 5 * (1 + Math.floor(Math.random() * 11)); // 5..55
+  state.step = 1;
+  state.clockPerfect = true;
+  render();
+}
+
+newClock();
+</script>
+</body>
+</html>
