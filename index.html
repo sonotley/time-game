@@ -3,214 +3,819 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tell the Time</title>
+<title>Tell the Time — Interactive Learning Game</title>
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #fdf6e3;
-    --panel: #ffffff;
-    --ink: #2b2b2b;
-    --muted: #8a8a8a;
-    --accent: #4a7bd6;
-    --past: #7fc97f;
-    --to: #6fa8dc;
-    --good: #2e8b57;
-    --bad: #c0392b;
-    --shadow: 0 2px 6px rgba(0,0,0,0.08);
+    --past-color: #10b981;
+    --to-color: #3b82f6;
   }
+  
+  /* Morning Theme */
+  body.morning {
+    --bg-gradient: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fde68a 100%);
+    --panel-bg: rgba(255, 255, 255, 0.7);
+    --panel-border: rgba(251, 191, 36, 0.35);
+    --text-primary: #78350f;
+    --text-muted: #b45309;
+    --accent: #d97706;
+    --accent-hover: #b45309;
+    --accent-light: #fef3c7;
+    --clock-shadow: 0 10px 30px rgba(217, 119, 6, 0.12);
+    --past-color: #059669;
+    --to-color: #2563eb;
+  }
+
+  /* Afternoon Theme */
+  body.afternoon {
+    --bg-gradient: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #bae6fd 100%);
+    --panel-bg: rgba(255, 255, 255, 0.75);
+    --panel-border: rgba(14, 165, 233, 0.25);
+    --text-primary: #0f172a;
+    --text-muted: #475569;
+    --accent: #0284c7;
+    --accent-hover: #0369a1;
+    --accent-light: #e0f2fe;
+    --clock-shadow: 0 10px 30px rgba(14, 165, 233, 0.12);
+    --past-color: #059669;
+    --to-color: #2563eb;
+  }
+
+  /* Sunset Theme */
+  body.sunset {
+    --bg-gradient: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 50%, #fbcfe8 100%);
+    --panel-bg: rgba(255, 255, 255, 0.7);
+    --panel-border: rgba(244, 63, 94, 0.3);
+    --text-primary: #4c0519;
+    --text-muted: #9f1239;
+    --accent: #db2777;
+    --accent-hover: #be185d;
+    --accent-light: #ffe4e6;
+    --clock-shadow: 0 10px 30px rgba(244, 63, 94, 0.12);
+    --past-color: #047857;
+    --to-color: #1d4ed8;
+  }
+
+  /* Night Theme */
+  body.night {
+    --bg-gradient: linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e1b4b 100%);
+    --panel-bg: rgba(30, 41, 59, 0.65);
+    --panel-border: rgba(99, 102, 241, 0.25);
+    --text-primary: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent: #818cf8;
+    --accent-hover: #6366f1;
+    --accent-light: rgba(99, 102, 241, 0.15);
+    --clock-shadow: 0 10px 35px rgba(0, 0, 0, 0.4), 0 0 20px rgba(99, 102, 241, 0.1);
+    --past-color: #34d399;
+    --to-color: #60a5fa;
+  }
+
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
+  
   body {
-    font-family: "Comic Sans MS", "Chalkboard SE", "Trebuchet MS", system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--ink);
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+    background: var(--bg-gradient);
+    color: var(--text-primary);
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    transition: background 0.8s ease, color 0.5s ease;
+    overflow-x: hidden;
+    padding-bottom: 40px;
   }
+
   header {
-    padding: 12px 20px;
+    padding: 24px 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 16px;
+    gap: 20px;
     flex-wrap: wrap;
+    max-width: 1000px;
+    width: 100%;
+    margin-bottom: 12px;
   }
-  h1 {
-    margin: 0;
-    font-size: 24px;
-    color: var(--accent);
-  }
-  #stars-bar {
+
+  .logo-area {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 14px;
+  }
+
+  .theme-icon {
+    font-size: 32px;
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+    border: 1px solid var(--panel-border);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.5s ease;
+  }
+  body.night .theme-icon {
+    background: rgba(15, 23, 42, 0.4);
+  }
+
+  .title-wrap {
+    display: flex;
+    flex-direction: column;
+  }
+
+  h1 {
+    font-family: 'Fredoka', sans-serif;
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.15;
+    transition: color 0.5s ease;
+  }
+
+  .theme-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+    transition: color 0.5s ease;
+  }
+
+  .stats-area {
+    display: flex;
+    gap: 12px;
+  }
+
+  .stat-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 10px 16px;
+    border-radius: 14px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+    transition: transform 0.2s ease, background-color 0.5s ease, border-color 0.5s ease;
+  }
+  .stat-badge:hover {
+    transform: translateY(-2px);
+  }
+  .stat-badge strong {
     font-size: 18px;
+    color: var(--accent);
+    transition: color 0.5s ease;
   }
-  #stars-row {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: 2px;
-    max-width: 320px;
+  .stat-badge.streak {
+    display: none;
+    border-color: #f59e0b;
   }
-  .star { font-size: 22px; }
+  .stat-badge.streak.show {
+    display: flex;
+    animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .stat-badge.collection-btn {
+    cursor: pointer;
+    border-color: var(--accent);
+  }
+
   main {
     display: flex;
     flex-wrap: wrap;
-    gap: 20px;
-    padding: 0 20px 40px;
+    gap: 28px;
+    padding: 0 20px;
     justify-content: center;
-    align-items: flex-start;
+    align-items: stretch;
+    max-width: 1000px;
+    width: 100%;
   }
+
   #clock-wrap {
-    flex: 0 0 auto;
-    background: var(--panel);
-    border-radius: 16px;
-    padding: 16px;
-    box-shadow: var(--shadow);
+    flex: 0 1 420px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 24px;
+    padding: 20px;
+    box-shadow: var(--clock-shadow);
+    transition: background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
+
   svg.clock {
-    width: min(80vw, 420px);
-    height: min(80vw, 420px);
+    width: 100%;
+    height: auto;
+    max-width: 380px;
     display: block;
+    aspect-ratio: 1 / 1;
   }
+
   #panel {
-    flex: 1 1 320px;
-    max-width: 480px;
-    background: var(--panel);
-    border-radius: 16px;
-    padding: 20px 22px;
-    box-shadow: var(--shadow);
+    flex: 1 1 380px;
+    max-width: 500px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 24px;
+    padding: 28px;
+    box-shadow: var(--clock-shadow);
+    transition: background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease, opacity 0.25s ease, transform 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
   }
+
+  .progress-container {
+    margin-bottom: 20px;
+  }
+  .progress-track {
+    width: 100%;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  body.night .progress-track {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .progress-bar {
+    height: 100%;
+    width: 25%;
+    background: var(--accent);
+    border-radius: 4px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.5s ease;
+  }
+
   .step-label {
-    color: var(--muted);
-    font-size: 14px;
+    color: var(--text-muted);
+    font-family: 'Fredoka', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
+    transition: color 0.5s ease;
   }
-  .question {
+
+  /* Developing Phrase Builder */
+  .phrase-builder {
+    background: rgba(0, 0, 0, 0.04);
+    border: 2px dashed var(--panel-border);
+    padding: 14px;
+    border-radius: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Fredoka', sans-serif;
     font-size: 20px;
-    margin: 6px 0 16px;
-    line-height: 1.35;
+    font-weight: 600;
+    margin-bottom: 22px;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.5s ease;
   }
+  body.night .phrase-builder {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .word-slot {
+    padding: 6px 12px;
+    border-radius: 10px;
+    transition: all 0.25s ease;
+    border: 1px dashed transparent;
+  }
+  .word-slot.active {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.2);
+    border-style: solid;
+    border-color: var(--accent);
+  }
+  .word-slot.filled {
+    background: var(--accent-light);
+    color: var(--accent);
+    border: 1px solid var(--panel-border);
+  }
+  .word-slot.empty {
+    color: var(--text-muted);
+    opacity: 0.5;
+  }
+  .word-sep {
+    color: var(--text-muted);
+    font-weight: 400;
+    opacity: 0.6;
+  }
+
+  .question {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 21px;
+    font-weight: 600;
+    margin: 6px 0 20px;
+    line-height: 1.35;
+    color: var(--text-primary);
+    transition: color 0.5s ease;
+  }
+
   .answers {
     display: grid;
-    gap: 8px;
+    gap: 10px;
   }
   .answers.grid-12 { grid-template-columns: repeat(3, 1fr); }
   .answers.grid-6  { grid-template-columns: repeat(3, 1fr); }
   .answers.grid-2  { grid-template-columns: 1fr 1fr; }
   .answers.single  { grid-template-columns: 1fr; }
+
   button.ans {
     padding: 14px 8px;
     font-size: 17px;
-    font-family: inherit;
-    border: 2px solid #cfd8dc;
-    background: #fafafa;
-    border-radius: 12px;
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 600;
+    color: var(--text-primary);
+    border: 2px solid var(--panel-border);
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 14px;
     cursor: pointer;
-    transition: transform 0.05s ease, background 0.15s ease, border-color 0.15s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.01);
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                background-color 0.2s ease, 
+                border-color 0.2s ease, 
+                color 0.5s ease,
+                box-shadow 0.2s ease;
   }
-  button.ans:hover { background: #eef4ff; border-color: var(--accent); }
-  button.ans:active { transform: scale(0.97); }
-  button.ans.correct { background: #d6f5d6; border-color: var(--good); }
-  button.ans.wrong   { background: #f9d6d2; border-color: var(--bad); animation: shake 0.3s; }
+  body.night button.ans {
+    background: rgba(15, 23, 42, 0.2);
+  }
+  button.ans:hover:not(:disabled) {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  }
+  button.ans:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+  }
+  button.ans.correct {
+    background: #10b981 !important;
+    border-color: #059669 !important;
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+  }
+  button.ans.wrong {
+    background: #ef4444 !important;
+    border-color: #dc2626 !important;
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3) !important;
+    animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+  }
+
+  button.ans-to {
+    border-left-width: 6px !important;
+    border-left-color: var(--to-color) !important;
+  }
+  button.ans-past {
+    border-right-width: 6px !important;
+    border-right-color: var(--past-color) !important;
+  }
+
   @keyframes shake {
-    0%,100% { transform: translateX(0); }
-    25% { transform: translateX(-6px); }
-    75% { transform: translateX(6px); }
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
   }
+
   .hint {
-    min-height: 22px;
+    min-height: 24px;
     margin-top: 14px;
     font-size: 15px;
-    color: var(--bad);
+    font-weight: 500;
+    color: #ef4444;
+    line-height: 1.4;
+    opacity: 0;
+    transform: translateY(5px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
   }
-  .hint.ok { color: var(--good); }
+  .hint.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .hint.ok {
+    color: #10b981;
+  }
+  body.night .hint {
+    color: #f87171;
+  }
+  body.night .hint.ok {
+    color: #34d399;
+  }
+
   .reveal {
     text-align: center;
-    padding: 18px 8px 8px;
+    padding: 12px 8px;
+    animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
+  @keyframes popIn {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
   .reveal .big {
-    font-size: 32px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 34px;
+    font-weight: 700;
     color: var(--accent);
-    margin: 6px 0 18px;
-    line-height: 1.2;
+    margin: 4px 0 16px;
+    line-height: 1.25;
+    transition: color 0.5s ease;
   }
-  .reveal .got-star {
-    font-size: 22px;
-    color: var(--good);
-    margin-bottom: 8px;
+
+  /* Egg hatching reward styles */
+  .hatching-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0;
   }
+  .hatching-egg {
+    font-size: 56px;
+    animation: wobbleEgg 1.2s infinite ease-in-out;
+    transform-origin: bottom center;
+    cursor: default;
+  }
+  @keyframes wobbleEgg {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-8deg) scaleX(1.04); }
+    75% { transform: rotate(8deg) scaleX(1.04); }
+  }
+  .hatching-text {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .owl-reward-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.45);
+    border: 1.5px solid var(--panel-border);
+    border-radius: 20px;
+    padding: 16px;
+    margin: 16px auto 20px;
+    max-width: 250px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.03);
+    animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  body.night .owl-reward-card {
+    background: rgba(15, 23, 42, 0.4);
+  }
+  .owl-reward-card img, .owl-reward-card svg {
+    width: 150px;
+    height: 150px;
+    border-radius: 14px;
+    border: 2.5px solid var(--panel-border);
+    margin-bottom: 12px;
+    object-fit: cover;
+    background: #f8fafc;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+  }
+  .owl-prompt {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 10px;
+    line-height: 1.35;
+    padding: 0 6px;
+  }
+  .reveal .got-owl-text {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 21px;
+    font-weight: 600;
+    color: #10b981;
+    margin-bottom: 16px;
+  }
+  body.night .reveal .got-owl-text {
+    color: #34d399;
+  }
+
   button.next {
-    font-family: inherit;
-    font-size: 18px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 19px;
+    font-weight: 600;
     background: var(--accent);
     color: white;
     border: none;
-    border-radius: 12px;
-    padding: 12px 22px;
+    border-radius: 14px;
+    padding: 14px 28px;
     cursor: pointer;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25);
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                background-color 0.2s ease, 
+                box-shadow 0.2s ease;
   }
-  button.next:hover { background: #3a6ac2; }
+  button.next:hover {
+    background: var(--accent-hover);
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+  }
+  button.next:active {
+    transform: translateY(0) scale(0.98);
+  }
 
-  /* SVG hand fading */
-  .hand { transition: opacity 0.25s ease; }
-  .hand.dim { opacity: 0.18; }
-  .overlay { transition: opacity 0.25s ease; opacity: 0; pointer-events: none; }
+  /* SVG Clock transitions & elements */
+  .hand { 
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease; 
+  }
+  .hand.dim { opacity: 0.12; }
+  .overlay { transition: opacity 0.3s ease; opacity: 0; pointer-events: none; }
   .overlay.show { opacity: 1; }
 
-  @media (max-width: 700px) {
-    main { padding: 0 12px 30px; }
-    #panel { padding: 16px; }
-    .question { font-size: 18px; }
+  /* Confetti overlay canvas */
+  #confetti-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Collection Drawer UI */
+  .drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9998;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+  .drawer-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .drawer {
+    position: fixed;
+    top: 0;
+    right: -420px;
+    width: 100%;
+    max-width: 400px;
+    height: 100%;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--panel-border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: -10px 0 30px rgba(0,0,0,0.06);
+    z-index: 9999;
+    transition: right 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+  }
+  .drawer.open {
+    right: 0;
+  }
+
+  .drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1.5px solid var(--panel-border);
+    padding-bottom: 12px;
+  }
+  .drawer-header h2 {
+    font-family: 'Fredoka', sans-serif;
+    margin: 0;
+    font-size: 21px;
+    color: var(--accent);
+  }
+  .close-drawer {
+    background: none;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+    color: var(--text-primary);
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .close-drawer:hover {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+
+  .owl-grid {
+    flex: 1;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    padding-bottom: 20px;
+  }
+  
+  /* Beautiful custom scrollbar for drawer */
+  .owl-grid::-webkit-scrollbar {
+    width: 6px;
+  }
+  .owl-grid::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .owl-grid::-webkit-scrollbar-thumb {
+    background: var(--panel-border);
+    border-radius: 3px;
+  }
+
+  .owl-card {
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.01);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+  }
+  body.night .owl-card {
+    background: rgba(15, 23, 42, 0.3);
+  }
+  .owl-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.03);
+  }
+  .owl-card img {
+    width: 100%;
+    aspect-ratio: 1/1;
+    border-radius: 10px;
+    object-fit: cover;
+    margin-bottom: 6px;
+    border: 1.5px solid var(--panel-border);
+  }
+  .owl-card span {
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    color: var(--text-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.35;
+    padding: 0 2px;
+  }
+
+  @media (max-width: 768px) {
+    header { padding: 16px; margin-bottom: 4px; }
+    main { padding: 0 16px 24px; gap: 20px; }
+    #clock-wrap { padding: 16px; }
+    #panel { padding: 22px; }
+    h1 { font-size: 22px; }
+    .theme-icon { width: 48px; height: 48px; font-size: 26px; }
+    .question { font-size: 19px; }
     button.ans { font-size: 16px; padding: 12px 6px; }
+    .reveal .big { font-size: 28px; }
+    .answers.grid-12 { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
 </head>
-<body>
+<body class="afternoon">
+
+<canvas id="confetti-canvas"></canvas>
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeCollectionDrawer()"></div>
+
+<!-- Collection Slide-in Drawer -->
+<div class="drawer" id="collection-drawer">
+  <div class="drawer-header">
+    <h2>🦉 My Owls Collection</h2>
+    <button class="close-drawer" onclick="closeCollectionDrawer()">&times;</button>
+  </div>
+  <div class="owl-grid" id="owl-grid">
+    <!-- Grid items inserted dynamically -->
+  </div>
+</div>
+
 <header>
-  <h1>Tell the Time</h1>
-  <div id="stars-bar">
-    <span>Stars: <strong id="star-count">0</strong></span>
-    <span id="stars-row" aria-label="earned stars"></span>
+  <div class="logo-area">
+    <div class="theme-icon" id="theme-icon">☀️</div>
+    <div class="title-wrap">
+      <h1>Tell the Time</h1>
+      <span class="theme-label" id="theme-label">Sunny Afternoon!</span>
+    </div>
+  </div>
+  <div class="stats-area">
+    <div class="stat-badge streak" id="streak-badge">
+      <span class="emoji">🔥</span> Streak: <strong id="streak-count">0</strong>
+    </div>
+    <div class="stat-badge collection-btn" onclick="openCollectionDrawer()">
+      <span class="emoji">🦉</span> Owls: <strong id="owl-count">0</strong>
+    </div>
   </div>
 </header>
+
 <main>
   <div id="clock-wrap">
     <svg class="clock" viewBox="0 0 400 400" aria-label="analog clock">
-      <!-- Past/To shading overlay -->
-      <g id="overlay-halves" class="overlay">
-        <path d="M 200 200 L 200 30 A 170 170 0 0 1 200 370 Z" fill="#7fc97f" opacity="0.22"/>
-        <path d="M 200 200 L 200 370 A 170 170 0 0 1 200 30 Z" fill="#6fa8dc" opacity="0.22"/>
-        <text x="290" y="208" text-anchor="middle" font-size="22" fill="#3a8a3a" font-weight="bold">past</text>
-        <text x="110" y="208" text-anchor="middle" font-size="22" fill="#2a5fa0" font-weight="bold">to</text>
-      </g>
+      <defs>
+        <!-- Shadow filters for depth -->
+        <filter id="clock-shadow-filter" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="2" dy="5" stdDeviation="5" flood-color="#000" flood-opacity="0.1" />
+        </filter>
+        <filter id="hand-shadow-filter" filterUnits="userSpaceOnUse" x="0" y="0" width="400" height="400">
+          <feDropShadow dx="1.5" dy="3" stdDeviation="2.5" flood-color="#000" flood-opacity="0.2" />
+        </filter>
+        <radialGradient id="clock-face-grad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ffffff" />
+          <stop offset="92%" stop-color="#ffffff" />
+          <stop offset="100%" stop-color="#f1f5f9" />
+        </radialGradient>
+        <marker id="arrow-marker" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path id="arrow-path" d="M 0 1.5 L 8.5 5 L 0 8.5 z" fill="var(--accent)" />
+        </marker>
+      </defs>
 
       <!-- Clock face -->
-      <circle cx="200" cy="200" r="180" fill="#ffffff" stroke="#3a3a3a" stroke-width="4"/>
+      <circle cx="200" cy="200" r="180" fill="url(#clock-face-grad)" stroke="#1e293b" stroke-width="4.5" filter="url(#clock-shadow-filter)"/>
+
+      <!-- Past/To shading overlay -->
+      <g id="overlay-halves" class="overlay">
+        <path d="M 200 200 L 200 30 A 170 170 0 0 1 200 370 Z" fill="var(--past-color)" opacity="0.15"/>
+        <path d="M 200 200 L 200 370 A 170 170 0 0 1 200 30 Z" fill="var(--to-color)" opacity="0.15"/>
+        <text x="290" y="206" text-anchor="middle" font-family="Fredoka" font-size="20" fill="var(--past-color)" font-weight="bold">past</text>
+        <text x="110" y="206" text-anchor="middle" font-family="Fredoka" font-size="20" fill="var(--to-color)" font-weight="bold">to</text>
+      </g>
+
+      <!-- Curved arrow overlay for Step 3 -->
+      <g id="overlay-arrow" class="overlay">
+        <path id="step3-arrow" d="" fill="none" stroke-width="4.5" marker-end="url(#arrow-marker)" stroke-linecap="round"/>
+      </g>
 
       <!-- Tick marks -->
       <g id="ticks"></g>
 
       <!-- Numerals -->
-      <g id="numerals" font-size="26" font-weight="bold" text-anchor="middle" fill="#2b2b2b"></g>
+      <g id="numerals" font-family="Fredoka" font-size="26" font-weight="bold" text-anchor="middle" fill="#1e293b"></g>
 
-      <!-- Five-minute counter labels overlay -->
-      <g id="overlay-counts" class="overlay" font-size="18" text-anchor="middle" font-weight="bold"></g>
 
       <!-- Hour hand -->
-      <g id="hour-hand" class="hand" transform="rotate(0 200 200)">
-        <line x1="200" y1="200" x2="200" y2="120" stroke="#222" stroke-width="10" stroke-linecap="round"/>
+      <g id="hour-hand" class="hand" transform="rotate(0 200 200)" filter="url(#hand-shadow-filter)">
+        <line x1="200" y1="200" x2="200" y2="120" stroke="#ef4444" stroke-width="11" stroke-linecap="round"/>
+        <line x1="200" y1="200" x2="200" y2="120" stroke="#fca5a5" stroke-width="4" stroke-linecap="round"/>
       </g>
       <!-- Minute hand -->
-      <g id="minute-hand" class="hand" transform="rotate(0 200 200)">
-        <line x1="200" y1="200" x2="200" y2="70" stroke="#444" stroke-width="6" stroke-linecap="round"/>
+      <g id="minute-hand" class="hand" transform="rotate(0 200 200)" filter="url(#hand-shadow-filter)">
+        <line x1="200" y1="200" x2="200" y2="70" stroke="#3b82f6" stroke-width="7" stroke-linecap="round"/>
+        <line x1="200" y1="200" x2="200" y2="70" stroke="#93c5fd" stroke-width="2.5" stroke-linecap="round"/>
       </g>
       <!-- Centre dot -->
-      <circle cx="200" cy="200" r="7" fill="#222"/>
+      <circle cx="200" cy="200" r="10" fill="var(--accent)" stroke="#ffffff" stroke-width="2" filter="url(#hand-shadow-filter)"/>
     </svg>
   </div>
 
   <div id="panel">
-    <div class="step-label" id="step-label">Step 1 of 4</div>
+    <div class="progress-container">
+      <div class="progress-track">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <div class="step-label" id="step-label">Step 1 of 4</div>
+    </div>
+    
+    <div class="phrase-builder" id="phrase-builder">
+      <span class="word-slot" id="slot-minute">?</span>
+      <span class="word-sep" id="slot-sep1">•</span>
+      <span class="word-slot" id="slot-relation">past/to</span>
+      <span class="word-sep" id="slot-sep2">•</span>
+      <span class="word-slot" id="slot-hour">?</span>
+    </div>
+
     <div class="question" id="question"></div>
     <div class="answers" id="answers"></div>
     <div class="hint" id="hint"></div>
@@ -227,19 +832,25 @@ const BLOCK_WORDS = {1:'five', 2:'ten', 3:'quarter', 4:'twenty', 5:'twenty-five'
 const state = {
   hour: 0,
   minute: 0,
+  isPM: false,
   step: 1,
-  stars: 0,
+  streak: 0,
   clockPerfect: true,
+  owls: (() => { try { return JSON.parse(localStorage.getItem('owls_collection')) || []; } catch(e) { return []; } })(),
 };
 
-// ------- SVG one-time setup -------
+// Set initial collection count
+document.getElementById('owl-count').textContent = state.owls.length;
+
+// ------- SVG setup -------
 function buildTicks() {
   const g = document.getElementById('ticks');
+  g.innerHTML = '';
   for (let i = 0; i < 60; i++) {
     const isMajor = (i % 5 === 0);
     const angle = i * 6 * Math.PI / 180;
-    const r1 = isMajor ? 160 : 168;
-    const r2 = 176;
+    const r1 = isMajor ? 156 : 165;
+    const r2 = 175;
     const x1 = 200 + r1 * Math.sin(angle);
     const y1 = 200 - r1 * Math.cos(angle);
     const x2 = 200 + r2 * Math.sin(angle);
@@ -249,17 +860,19 @@ function buildTicks() {
     line.setAttribute('y1', y1);
     line.setAttribute('x2', x2);
     line.setAttribute('y2', y2);
-    line.setAttribute('stroke', '#3a3a3a');
+    line.setAttribute('stroke', '#1e293b');
+    line.setAttribute('opacity', isMajor ? '0.75' : '0.3');
     line.setAttribute('stroke-width', isMajor ? 3 : 1.5);
     g.appendChild(line);
   }
 }
 function buildNumerals() {
   const g = document.getElementById('numerals');
+  g.innerHTML = '';
   for (let n = 1; n <= 12; n++) {
     const angle = n * 30 * Math.PI / 180;
-    const x = 200 + 140 * Math.sin(angle);
-    const y = 200 - 140 * Math.cos(angle) + 9; // +9 for vertical centring
+    const x = 200 + 138 * Math.sin(angle);
+    const y = 200 - 138 * Math.cos(angle) + 9; // +9 for vertical centring
     const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     t.setAttribute('x', x);
     t.setAttribute('y', y);
@@ -267,10 +880,191 @@ function buildNumerals() {
     g.appendChild(t);
   }
 }
-buildTicks();
-buildNumerals();
 
-// ------- Clock hand rendering -------
+// ------- Drawer Actions -------
+function openCollectionDrawer() {
+  const drawer = document.getElementById('collection-drawer');
+  const overlay = document.getElementById('drawer-overlay');
+  const grid = document.getElementById('owl-grid');
+  
+  grid.innerHTML = '';
+  if (state.owls.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: span 2; text-align: center; color: var(--text-muted); font-size: 14px; margin-top: 60px; line-height: 1.5; padding: 0 10px;">
+        No owls collected yet.<br>🥚 Get a perfect round to hatch your first unique owl!
+      </div>
+    `;
+  } else {
+    // Show grid of collected owls (newest first)
+    [...state.owls].reverse().forEach(owl => {
+      const card = document.createElement('div');
+      card.className = 'owl-card';
+      
+      const img = document.createElement('img');
+      img.src = owl.image;
+      img.alt = owl.prompt;
+      
+      const span = document.createElement('span');
+      span.textContent = owl.prompt.split(' (Local')[0]; // strip the local label for a cleaner display
+      span.title = owl.prompt;
+      
+      card.appendChild(img);
+      card.appendChild(span);
+      grid.appendChild(card);
+    });
+  }
+  
+  drawer.classList.add('open');
+  overlay.classList.add('show');
+}
+
+function closeCollectionDrawer() {
+  document.getElementById('collection-drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('show');
+}
+
+// ------- Procedural Fallback SVG Owl Generator -------
+function generateSvgOwl() {
+  const colors = ['#f87171', '#fb923c', '#fbbf24', '#34d399', '#2dd4bf', '#60a5fa', '#818cf8', '#a78bfa', '#f472b6', '#fcd34d', '#4ade80'];
+  const bodyColor = colors[Math.floor(Math.random() * colors.length)];
+  let bellyColor = colors[Math.floor(Math.random() * colors.length)];
+  while (bellyColor === bodyColor) {
+    bellyColor = colors[Math.floor(Math.random() * colors.length)];
+  }
+  const beakColor = '#f59e0b';
+  
+  const adjectives = ["Cozy", "Wizard", "Steampunk", "Detective", "Astronaut", "Chef", "Gardener", "Pirate", "Scholar", "Sleepy"];
+  const accessories = ["Hat", "Glasses", "Goggles", "Scarf", "Badge", "Bowtie", "Monocle", "Crown"];
+  const name = `A cute vector ${adjectives[Math.floor(Math.random() * adjectives.length)]} owl wearing a ${accessories[Math.floor(Math.random() * accessories.length)]} (Local Fallback)`;
+  
+  const hasGlasses = name.includes('Glasses') || name.includes('Goggles');
+  const hasCrown = name.includes('Crown');
+  const hasHat = name.includes('Hat');
+  
+  const svg = `<svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100%" height="100%" fill="#f8fafc" rx="14"/>
+    <rect width="100%" height="100%" fill="none" stroke="${bodyColor}" stroke-width="2.5" rx="14"/>
+    
+    <!-- Ears -->
+    <path d="M 22 36 L 16 22 L 36 28 Z" fill="${bodyColor}"/>
+    <path d="M 78 36 L 84 22 L 64 28 Z" fill="${bodyColor}"/>
+    
+    <!-- Body -->
+    <rect x="20" y="28" width="60" height="58" rx="26" fill="${bodyColor}"/>
+    <rect x="32" y="48" width="36" height="30" rx="14" fill="${bellyColor}"/>
+    
+    <!-- Eyes -->
+    <circle cx="36" cy="40" r="11" fill="#ffffff"/>
+    <circle cx="64" cy="40" r="11" fill="#ffffff"/>
+    <circle cx="38" cy="40" r="5" fill="#1e293b"/>
+    <circle cx="62" cy="40" r="5" fill="#1e293b"/>
+    <circle cx="39" cy="38" r="1.5" fill="#ffffff"/>
+    <circle cx="63" cy="38" r="1.5" fill="#ffffff"/>
+    
+    <!-- Beak -->
+    <polygon points="50,44 46,51 54,51" fill="${beakColor}"/>
+    
+    <!-- Belly spots -->
+    <path d="M 45 56 Q 50 59 55 56" stroke="#ffffff" stroke-width="2" fill="none" opacity="0.8"/>
+    <path d="M 41 64 Q 46 67 51 64" stroke="#ffffff" stroke-width="2" fill="none" opacity="0.8"/>
+    <path d="M 49 64 Q 54 67 59 64" stroke="#ffffff" stroke-width="2" fill="none" opacity="0.8"/>
+    
+    <!-- Wings -->
+    <path d="M 18 43 Q 8 58 22 73 Z" fill="${bodyColor}"/>
+    <path d="M 82 43 Q 92 58 78 73 Z" fill="${bodyColor}"/>
+    
+    <!-- Accessories -->
+    ${hasGlasses ? `
+      <circle cx="36" cy="40" r="13" fill="none" stroke="#e11d48" stroke-width="2"/>
+      <circle cx="64" cy="40" r="13" fill="none" stroke="#e11d48" stroke-width="2"/>
+      <line x1="49" y1="40" x2="51" y2="40" stroke="#e11d48" stroke-width="2"/>
+    ` : hasCrown ? `
+      <polygon points="40,23 35,13 45,18 50,10 55,18 65,13 60,23" fill="#fbbf24" stroke="#d97706" stroke-width="1"/>
+    ` : hasHat ? `
+      <polygon points="30,26 70,26 60,11 40,11" fill="#1e1b4b"/>
+      <line x1="25" y1="26" x2="75" y2="26" stroke="#1e1b4b" stroke-width="2.5" stroke-linecap="round"/>
+    ` : `
+      <polygon points="43,51 50,55 43,59" fill="#e11d48"/>
+      <polygon points="57,51 50,55 57,59" fill="#e11d48"/>
+      <circle cx="50" cy="55" r="2" fill="#ffffff"/>
+    `}
+  </svg>`;
+  
+  return {
+    prompt: name,
+    image: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+  };
+}
+
+// ------- Fetch AI Owl from local Python API -------
+async function fetchOwlReward() {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3200); // 3.2s cutoff
+    
+    const response = await fetch('http://localhost:8081/generate-owl', {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) throw new Error('API server returned error status');
+    const data = await response.json();
+    return { prompt: data.prompt, image: data.image };
+  } catch (err) {
+    console.log('API offline. Launching fallback SVG owl character.');
+    return generateSvgOwl();
+  }
+}
+
+// ------- Theme Management -------
+function applyTheme() {
+  let h24 = state.hour;
+  if (state.hour === 12) {
+    h24 = state.isPM ? 12 : 0;
+  } else {
+    h24 = state.hour + (state.isPM ? 12 : 0);
+  }
+
+  const body = document.body;
+  const icon = document.getElementById('theme-icon');
+  const label = document.getElementById('theme-label');
+
+  body.classList.remove('morning', 'afternoon', 'sunset', 'night');
+
+  let themeClass = 'afternoon';
+  let themeEmoji = '☀️';
+  let themeText = 'Sunny Afternoon!';
+
+  if (h24 >= 6 && h24 < 12) {
+    themeClass = 'morning';
+    themeEmoji = '🌅';
+    themeText = 'Good Morning!';
+  } else if (h24 >= 12 && h24 < 17) {
+    themeClass = 'afternoon';
+    themeEmoji = '☀️';
+    themeText = 'Sunny Afternoon!';
+  } else if (h24 >= 17 && h24 < 20) {
+    themeClass = 'sunset';
+    themeEmoji = '🌇';
+    themeText = 'Beautiful Sunset!';
+  } else {
+    themeClass = 'night';
+    themeEmoji = '🌙';
+    themeText = 'Starry Night!';
+  }
+
+  body.classList.add(themeClass);
+  icon.textContent = themeEmoji;
+  label.textContent = themeText;
+  
+  // Icon animate
+  icon.style.transform = 'scale(0.8) rotate(-15deg)';
+  setTimeout(() => {
+    icon.style.transform = 'scale(1) rotate(0deg)';
+  }, 200);
+}
+
+// ------- Clock rendering -------
 function setHands() {
   const hourAngle = ((state.hour % 12) + state.minute / 60) * 30;
   const minuteAngle = state.minute * 6;
@@ -290,34 +1084,6 @@ function setHandHighlight(step) {
   }
 }
 
-function setOverlays(step) {
-  const halves = document.getElementById('overlay-halves');
-  const counts = document.getElementById('overlay-counts');
-  halves.classList.toggle('show', step === 2);
-  counts.classList.toggle('show', step === 3);
-
-  // Rebuild count labels for current direction
-  counts.innerHTML = '';
-  if (step === 3) {
-    const past = state.minute <= 30;
-    const blocks = past ? state.minute / 5 : (60 - state.minute) / 5;
-    // Show labels 1..blocks along the relevant arc
-    for (let i = 1; i <= blocks; i++) {
-      const minuteMark = past ? i * 5 : 60 - i * 5;
-      const angle = minuteMark * 6 * Math.PI / 180;
-      const r = 120;
-      const x = 200 + r * Math.sin(angle);
-      const y = 200 - r * Math.cos(angle) + 6;
-      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      t.setAttribute('x', x);
-      t.setAttribute('y', y);
-      t.setAttribute('fill', past ? '#3a8a3a' : '#2a5fa0');
-      t.textContent = i;
-      counts.appendChild(t);
-    }
-  }
-}
-
 // ------- Phrase assembly -------
 function phrase(hour, minute) {
   const past = minute <= 30;
@@ -326,14 +1092,101 @@ function phrase(hour, minute) {
   return `${BLOCK_WORDS[blocks]} ${past ? 'past' : 'to'} ${HOUR_NAMES[refHour]}`;
 }
 
+// ------- Step transitions -------
+function nextStepDelay(nextStepCallback) {
+  const panel = document.getElementById('panel');
+  panel.style.opacity = '0';
+  panel.style.transform = 'translateY(10px)';
+  
+  setTimeout(() => {
+    nextStepCallback();
+    panel.style.opacity = '1';
+    panel.style.transform = 'translateY(0)';
+  }, 250);
+}
+
+// ------- Phrase Builder UI -------
+function updatePhraseBuilder() {
+  const minuteSlot = document.getElementById('slot-minute');
+  const relationSlot = document.getElementById('slot-relation');
+  const hourSlot = document.getElementById('slot-hour');
+
+  minuteSlot.className = 'word-slot';
+  relationSlot.className = 'word-slot';
+  hourSlot.className = 'word-slot';
+
+  if (state.step === 1) {
+    minuteSlot.textContent = '?';
+    minuteSlot.classList.add('empty');
+    
+    relationSlot.textContent = 'past/to';
+    relationSlot.classList.add('empty');
+    
+    hourSlot.textContent = '?';
+    hourSlot.classList.add('active');
+  } else if (state.step === 2) {
+    minuteSlot.textContent = '?';
+    minuteSlot.classList.add('empty');
+    
+    relationSlot.textContent = 'past/to';
+    relationSlot.classList.add('active');
+    
+    const lowerHour = state.hour;
+    const upperHour = (state.hour % 12) + 1;
+    hourSlot.textContent = `${HOUR_NAMES[lowerHour]} or ${HOUR_NAMES[upperHour]}`;
+    hourSlot.classList.add('filled');
+  } else if (state.step === 3) {
+    minuteSlot.textContent = '?';
+    minuteSlot.classList.add('active');
+    
+    const isPast = state.minute <= 30;
+    relationSlot.textContent = isPast ? 'past' : 'to';
+    relationSlot.classList.add('filled');
+    
+    const finalHour = isPast ? state.hour : (state.hour % 12) + 1;
+    hourSlot.textContent = HOUR_NAMES[finalHour];
+    hourSlot.classList.add('filled');
+  } else {
+    const isPast = state.minute <= 30;
+    const block = isPast ? state.minute / 5 : (60 - state.minute) / 5;
+    
+    minuteSlot.textContent = BLOCK_WORDS[block];
+    minuteSlot.classList.add('filled');
+    
+    relationSlot.textContent = isPast ? 'past' : 'to';
+    relationSlot.classList.add('filled');
+    
+    const finalHour = isPast ? state.hour : (state.hour % 12) + 1;
+    hourSlot.textContent = HOUR_NAMES[finalHour];
+    hourSlot.classList.add('filled');
+    
+    // Highlight pulse
+    const pb = document.getElementById('phrase-builder');
+    pb.style.transform = 'scale(1.05)';
+    setTimeout(() => pb.style.transform = 'scale(1)', 300);
+  }
+}
+
 // ------- Step rendering -------
 function render() {
   setHands();
   setHandHighlight(state.step);
   setOverlays(state.step);
-  document.getElementById('step-label').textContent = state.step <= 4 ? `Step ${state.step} of 4` : '';
-  document.getElementById('hint').textContent = '';
-  document.getElementById('hint').classList.remove('ok');
+  
+  // Progress & Labels
+  const bar = document.getElementById('progress-bar');
+  const label = document.getElementById('step-label');
+  
+  if (state.step <= 4) {
+    bar.style.width = `${state.step * 25}%`;
+    label.textContent = `Step ${state.step} of 4`;
+  } else {
+    bar.style.width = '100%';
+    label.textContent = '';
+  }
+  
+  updatePhraseBuilder();
+  clearHint();
 
   if (state.step === 1) renderStep1();
   else if (state.step === 2) renderStep2();
@@ -356,22 +1209,38 @@ function makeButton(label, onClick) {
   return b;
 }
 
+function showHint(msg, isOk = false) {
+  const hint = document.getElementById('hint');
+  hint.textContent = msg;
+  hint.className = 'hint show' + (isOk ? ' ok' : '');
+}
+
+function clearHint() {
+  const hint = document.getElementById('hint');
+  hint.className = 'hint';
+  hint.textContent = '';
+}
+
 function wrongFeedback(btn, hintMsg) {
   btn.classList.add('wrong');
   state.clockPerfect = false;
-  const hint = document.getElementById('hint');
-  hint.classList.remove('ok');
-  hint.textContent = hintMsg;
-  setTimeout(() => btn.classList.remove('wrong'), 350);
+  
+  // Reset streak
+  state.streak = 0;
+  const streakBadge = document.getElementById('streak-badge');
+  streakBadge.classList.remove('show');
+  
+  showHint(hintMsg, false);
+  playFailureSound();
+  setTimeout(() => btn.classList.remove('wrong'), 400);
 }
 
 function rightFeedback(btn) {
   btn.classList.add('correct');
-  // disable all answer buttons
   document.querySelectorAll('#answers button.ans').forEach(b => b.disabled = true);
 }
 
-// --- Step 1: which two hours is the hour hand between? ---
+// --- Step 1: Hour selection ---
 function renderStep1() {
   document.getElementById('question').textContent =
     'Look at the SHORT hand (the hour hand). Which two numbers is it between?';
@@ -382,17 +1251,21 @@ function renderStep1() {
       const correctLower = state.hour;
       if (n === correctLower) {
         rightFeedback(btn);
-        document.getElementById('hint').classList.add('ok');
-        document.getElementById('hint').textContent = 'Yes! The short hand is between those two.';
-        setTimeout(() => { state.step = 2; render(); }, 700);
+        showHint('Yes! The short hand is between those two.', true);
+        setTimeout(() => {
+          nextStepDelay(() => {
+            state.step = 2;
+            render();
+          });
+        }, 800);
       } else {
-        wrongFeedback(btn, 'Not quite. Find the SHORT hand and look at which two numbers it points between.');
+        wrongFeedback(btn, 'Not quite. Find the SHORT hand and look at which two numbers it is pointing between.');
       }
     }));
   }
 }
 
-// --- Step 2: past or to? ---
+// --- Step 2: Past or To ---
 function renderStep2() {
   document.getElementById('question').textContent =
     'Now the LONG hand (the minute hand). Is it on the past side (right) or the to side (left)?';
@@ -401,49 +1274,69 @@ function renderStep2() {
   const onClick = (choice) => (btn) => {
     if (choice === correct) {
       rightFeedback(btn);
-      document.getElementById('hint').classList.add('ok');
-      document.getElementById('hint').textContent =
-        correct === 'past' ? 'Right — the long hand is on the past side.' :
-                             'Right — the long hand is on the to side.';
-      setTimeout(() => { state.step = 3; render(); }, 700);
+      showHint(correct === 'past' 
+        ? 'Right — the long hand is on the past side.' 
+        : 'Right — the long hand is on the to side.', true);
+      setTimeout(() => {
+        nextStepDelay(() => {
+          state.step = 3;
+          render();
+        });
+      }, 800);
     } else {
-      wrongFeedback(btn,
-        'Look at the long hand: if it is on the RIGHT half of the clock it is past, if on the LEFT it is to.');
+      wrongFeedback(btn, 'Look at the long hand: if it is on the RIGHT half of the clock it is past, if on the LEFT it is to.');
     }
   };
-  a.appendChild(makeButton('← To',   onClick('to')));
-  a.appendChild(makeButton('Past →', onClick('past')));
+  
+  const bTo = makeButton('← To', onClick('to'));
+  bTo.classList.add('ans-to');
+  const bPast = makeButton('Past →', onClick('past'));
+  bPast.classList.add('ans-past');
+  
+  a.appendChild(bTo);
+  a.appendChild(bPast);
 }
 
-// --- Step 3: how many five-minute blocks? ---
+// --- Step 3: Minutes word selection ---
 function renderStep3() {
   const past = state.minute <= 30;
-  const correct = past ? state.minute / 5 : (60 - state.minute) / 5;
+  const correctBlock = past ? state.minute / 5 : (60 - state.minute) / 5;
+  const correctWord = BLOCK_WORDS[correctBlock];
+  
   document.getElementById('question').textContent =
     past
-      ? 'Starting from 12 and going clockwise, how many five-minute steps to the long hand?'
-      : 'Starting from 12 and going anticlockwise, how many five-minute steps to the long hand?';
+      ? 'Counting clockwise from 12 to the minute hand, what name or number of minutes is that?'
+      : 'Counting clockwise from the minute hand to 12, what name or number of minutes is that?';
+      
   const a = clearAnswers('grid-6');
   for (let n = 1; n <= 6; n++) {
-    a.appendChild(makeButton(String(n), (btn) => {
-      if (n === correct) {
+    const word = BLOCK_WORDS[n];
+    a.appendChild(makeButton(word, (btn) => {
+      if (word === correctWord) {
         rightFeedback(btn);
-        document.getElementById('hint').classList.add('ok');
-        document.getElementById('hint').textContent = `Yes! ${n} five-minute step${n>1?'s':''}.`;
-        setTimeout(() => { state.step = 4; render(); }, 700);
+        showHint(`Yes! We say "${word}".`, true);
+        setTimeout(() => {
+          nextStepDelay(() => {
+            state.step = 4;
+            render();
+          });
+        }, 800);
       } else {
-        wrongFeedback(btn,
-          'Count carefully: each big number is 5 minutes. Start at 12 and count in fives.');
+        const hintText = past
+          ? 'Count clockwise from 12: five, ten, quarter (15), twenty, twenty-five, half (30).'
+          : 'Count clockwise from the minute hand to 12: five, ten, quarter (15), twenty, twenty-five, half (30).';
+        wrongFeedback(btn, hintText);
       }
     }));
   }
 }
 
-// --- Step 4: assemble and reveal ---
+// --- Step 4: Final Reveal (Hatching screen) ---
 function renderStep4() {
-  document.getElementById('step-label').textContent = 'All four steps!';
+  document.getElementById('step-label').textContent = 'Well done!';
   document.getElementById('question').textContent = 'Put it all together:';
   const a = clearAnswers('single');
+  
   const reveal = document.createElement('div');
   reveal.className = 'reveal';
 
@@ -452,68 +1345,302 @@ function renderStep4() {
   big.textContent = phrase(state.hour, state.minute);
   reveal.appendChild(big);
 
-  if (state.clockPerfect) {
-    state.stars += 1;
-    addStar();
-    document.getElementById('star-count').textContent = state.stars;
-    const sm = document.createElement('div');
-    sm.className = 'got-star';
-    sm.textContent = '⭐ You earned a star!';
-    reveal.appendChild(sm);
-    chime();
-  } else {
-    const sm = document.createElement('div');
-    sm.className = 'got-star';
-    sm.style.color = 'var(--muted)';
-    sm.textContent = 'Nice work finishing — try the next one for a star!';
-    reveal.appendChild(sm);
-  }
-
+  // Create the Next button first so it anchors the bottom of the reveal;
+  // the owl card will be inserted before it once the async fetch resolves.
   const next = document.createElement('button');
   next.className = 'next';
-  next.textContent = 'Next clock →';
-  next.addEventListener('click', newClock);
+  next.textContent = 'Next Clock \u2192';
+  next.style.marginTop = '10px';
+  next.addEventListener('click', () => {
+    nextStepDelay(newClock);
+  });
   reveal.appendChild(next);
+
+  if (state.clockPerfect) {
+    // Show egg hatching placeholder above the Next button
+    const hatching = document.createElement('div');
+    hatching.className = 'hatching-container';
+    hatching.innerHTML = `
+      <div class="hatching-egg">\u{1F95A}</div>
+      <div class="hatching-text">Hatching a unique AI Owl character...</div>
+    `;
+    reveal.insertBefore(hatching, next);
+    
+    // Asynchronously generate the owl (calls server or SVG generator fallback)
+    fetchOwlReward().then(owl => {
+      hatching.remove();
+      
+      const owlCard = document.createElement('div');
+      owlCard.className = 'owl-reward-card';
+      
+      const img = document.createElement('img');
+      img.src = owl.image;
+      img.alt = owl.prompt;
+      
+      const promptText = document.createElement('div');
+      promptText.className = 'owl-prompt';
+      promptText.textContent = owl.prompt.split(' (Local')[0];
+      
+      const successText = document.createElement('div');
+      successText.className = 'got-owl-text';
+      successText.textContent = '\u{1F989} You hatched a unique Owl!';
+      
+      owlCard.appendChild(img);
+      owlCard.appendChild(promptText);
+      owlCard.appendChild(successText);
+      
+      // next is now fully initialised — safe to use as anchor
+      reveal.insertBefore(owlCard, next);
+      
+      // Save owl — cap at 30 to avoid exceeding localStorage quota
+      const MAX_OWLS = 30;
+      state.owls.push(owl);
+      if (state.owls.length > MAX_OWLS) {
+        state.owls = state.owls.slice(-MAX_OWLS);
+      }
+      try {
+        localStorage.setItem('owls_collection', JSON.stringify(state.owls));
+      } catch (e) {
+        console.warn('localStorage full — oldest owl dropped.');
+        state.owls = state.owls.slice(1);
+        try { localStorage.setItem('owls_collection', JSON.stringify(state.owls)); } catch(_) {}
+      }
+      
+      // Update counts
+      document.getElementById('owl-count').textContent = state.owls.length;
+      state.streak += 1;
+      
+      const streakBadge = document.getElementById('streak-badge');
+      document.getElementById('streak-count').textContent = state.streak;
+      streakBadge.classList.add('show');
+      
+      confettiStart();
+      playSuccessSound();
+    });
+  } else {
+    // Fail path
+    state.streak = 0;
+    document.getElementById('streak-badge').classList.remove('show');
+    
+    const gotStar = document.createElement('div');
+    gotStar.className = 'got-owl-text';
+    gotStar.style.color = 'var(--text-muted)';
+    gotStar.style.fontSize = '18px';
+    gotStar.textContent = 'Nice work finishing \u2014 try the next one perfectly to hatch an owl!';
+    reveal.insertBefore(gotStar, next);
+    
+    playFailureSound();
+  }
 
   a.appendChild(reveal);
 }
 
-// ------- Stars row + ding -------
-function addStar() {
-  const s = document.createElement('span');
-  s.className = 'star';
-  s.textContent = '⭐';
-  document.getElementById('stars-row').appendChild(s);
-}
-
+// ------- Audio Synthesis (Web Audio API) -------
 let audioCtx = null;
-function chime() {
+
+function playSuccessSound() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    const t0 = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, t0);
-    osc.frequency.exponentialRampToValueAtTime(1320, t0 + 0.18);
-    gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(t0);
-    osc.stop(t0 + 0.4);
-  } catch (e) { /* audio is optional */ }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    const now = audioCtx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.50];
+    notes.forEach((freq, idx) => {
+      const time = now + idx * 0.09;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, time);
+      
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.linearRampToValueAtTime(0.18, time + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.45);
+      
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(time);
+      osc.stop(time + 0.5);
+    });
+  } catch (e) {
+    console.warn('Audio synthesis failed:', e);
+  }
 }
 
-// ------- New round -------
+function playFailureSound() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(200, now);
+    osc.frequency.exponentialRampToValueAtTime(100, now + 0.3);
+    
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.linearRampToValueAtTime(0.15, now + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+    
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.35);
+  } catch (e) {
+    console.warn('Audio synthesis failed:', e);
+  }
+}
+
+// ------- Canvas Confetti Engine -------
+const confetti = {
+  canvas: null,
+  ctx: null,
+  particles: [],
+  active: false,
+  colors: ['#ffd700', '#ff6b6b', '#4dadf7', '#51cf66', '#f783ac', '#ff922b'],
+};
+
+function confettiInit() {
+  confetti.canvas = document.getElementById('confetti-canvas');
+  confetti.ctx = confetti.canvas.getContext('2d');
+  window.addEventListener('resize', confettiResize);
+  confettiResize();
+}
+
+function confettiResize() {
+  confetti.canvas.width = window.innerWidth;
+  confetti.canvas.height = window.innerHeight;
+}
+
+function confettiStart() {
+  confetti.particles = [];
+  const count = 100;
+  const baseAngle = -Math.PI / 2; // Upward angle
+  
+  for (let i = 0; i < count; i++) {
+    const isLeftSide = Math.random() < 0.5;
+    const x = isLeftSide ? 0 : confetti.canvas.width;
+    const y = confetti.canvas.height * 0.8;
+    const angle = isLeftSide 
+      ? baseAngle + 0.1 + Math.random() * 0.5 
+      : baseAngle - 0.1 - Math.random() * 0.5;
+    const speed = 12 + Math.random() * 12;
+    
+    confetti.particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: 6 + Math.random() * 8,
+      color: confetti.colors[Math.floor(Math.random() * confetti.colors.length)],
+      rotation: Math.random() * 360,
+      rotationSpeed: (Math.random() - 0.5) * 8,
+      opacity: 1
+    });
+  }
+  
+  if (!confetti.active) {
+    confetti.active = true;
+    confettiTick();
+  }
+}
+
+function confettiTick() {
+  if (!confetti.active) return;
+  confetti.ctx.clearRect(0, 0, confetti.canvas.width, confetti.canvas.height);
+  let alive = false;
+  
+  for (let p of confetti.particles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.32; // Gravity
+    p.vx *= 0.98; // Friction
+    p.rotation += p.rotationSpeed;
+    p.opacity -= 0.009;
+    
+    if (p.opacity > 0 && p.y < confetti.canvas.height + 20) {
+      alive = true;
+      confetti.ctx.save();
+      confetti.ctx.translate(p.x, p.y);
+      confetti.ctx.rotate(p.rotation * Math.PI / 180);
+      confetti.ctx.fillStyle = p.color;
+      confetti.ctx.globalAlpha = p.opacity;
+      confetti.ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      confetti.ctx.restore();
+    }
+  }
+  
+  if (alive) {
+    requestAnimationFrame(confettiTick);
+  } else {
+    confetti.active = false;
+    confetti.ctx.clearRect(0, 0, confetti.canvas.width, confetti.canvas.height);
+  }
+}
+
+// ------- Round Setup -------
 function newClock() {
   state.hour = 1 + Math.floor(Math.random() * 12);
   state.minute = 5 * (1 + Math.floor(Math.random() * 11)); // 5..55
+  state.isPM = Math.random() < 0.5;
   state.step = 1;
   state.clockPerfect = true;
+  
+  applyTheme();
   render();
 }
 
+function getCoords(minute, r = 110) {
+  const angle = (minute * 6 * Math.PI) / 180;
+  const x = 200 + r * Math.sin(angle);
+  const y = 200 - r * Math.cos(angle);
+  return { x, y };
+}
+
+function setOverlays(step) {
+  const halves = document.getElementById('overlay-halves');
+  const overlayArrow = document.getElementById('overlay-arrow');
+  const arrowPath = document.getElementById('step3-arrow');
+  const arrowMarkerPath = document.getElementById('arrow-path');
+
+  halves.classList.toggle('show', step === 2);
+  overlayArrow.classList.toggle('show', step === 3);
+
+  if (step === 3) {
+    const past = state.minute <= 30;
+    const r = 106; // Radius just inside the hour markers
+    
+    let startMin, endMin;
+    if (past) {
+      startMin = 0;
+      endMin = state.minute;
+    } else {
+      startMin = state.minute;
+      endMin = 60;
+    }
+    
+    const start = getCoords(startMin, r);
+    const end = getCoords(endMin, r);
+    
+    // Draw the curved arc (sweep-flag is always 1 for clockwise)
+    const d = `M ${start.x} ${start.y} A ${r} ${r} 0 0 1 ${end.x} ${end.y}`;
+    arrowPath.setAttribute('d', d);
+    
+    const color = past ? 'var(--past-color)' : 'var(--to-color)';
+    arrowPath.setAttribute('stroke', color);
+    if (arrowMarkerPath) {
+      arrowMarkerPath.setAttribute('fill', color);
+    }
+  } else {
+    arrowPath.setAttribute('d', '');
+  }
+}
+
+buildTicks();
+buildNumerals();
+confettiInit();
 newClock();
 </script>
 </body>
