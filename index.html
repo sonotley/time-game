@@ -1000,18 +1000,34 @@ function generateSvgOwl() {
 async function fetchOwlReward() {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3200); // 3.2s cutoff
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // 300s cutoff
     
+    console.log('Requesting AI owl from server...');
     const response = await fetch('http://localhost:8081/generate-owl', {
+      method: 'GET',
+      mode: 'cors',
+      cache: 'no-cache',
+      headers: {
+        'Content-Type': 'application/json'
+      },
       signal: controller.signal
     });
     clearTimeout(timeoutId);
     
-    if (!response.ok) throw new Error('API server returned error status');
+    if (!response.ok) {
+      console.error(`API server returned error: ${response.status} ${response.statusText}`);
+      throw new Error('API server returned error status');
+    }
     const data = await response.json();
+    console.log('AI owl received successfully!');
     return { prompt: data.prompt, image: data.image };
   } catch (err) {
-    console.log('API offline. Launching fallback SVG owl character.');
+    if (err.name === 'AbortError') {
+      console.error('Owl generation timed out after 300s');
+    } else {
+      console.error('Owl generation fetch failed:', err);
+    }
+    console.log('Launching fallback SVG owl character.');
     return generateSvgOwl();
   }
 }
@@ -1345,8 +1361,7 @@ function renderStep4() {
   big.textContent = phrase(state.hour, state.minute);
   reveal.appendChild(big);
 
-  // Create the Next button first so it anchors the bottom of the reveal;
-  // the owl card will be inserted before it once the async fetch resolves.
+  // Create the Next button
   const next = document.createElement('button');
   next.className = 'next';
   next.textContent = 'Next Clock \u2192';
@@ -1357,6 +1372,11 @@ function renderStep4() {
   reveal.appendChild(next);
 
   if (state.clockPerfect) {
+    // Disable next button while hatching
+    next.disabled = true;
+    next.style.opacity = '0.5';
+    next.style.cursor = 'not-allowed';
+
     // Show egg hatching placeholder above the Next button
     const hatching = document.createElement('div');
     hatching.className = 'hatching-container';
@@ -1369,6 +1389,11 @@ function renderStep4() {
     // Asynchronously generate the owl (calls server or SVG generator fallback)
     fetchOwlReward().then(owl => {
       hatching.remove();
+      
+      // Re-enable next button
+      next.disabled = false;
+      next.style.opacity = '1';
+      next.style.cursor = 'pointer';
       
       const owlCard = document.createElement('div');
       owlCard.className = 'owl-reward-card';

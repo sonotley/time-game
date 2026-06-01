@@ -36,10 +36,10 @@ pip install -r requirements.txt
 python3 owl_server.py
 ```
 
-The server starts on **http://localhost:8081**. It takes ~20–30 seconds to load Stable Diffusion Turbo the first time. You can check it is ready at:
+The server starts on **http://127.0.0.1:8081**. It takes ~20–30 seconds to load Stable Diffusion Turbo the first time. You can check it is ready at:
 
 ```
-http://localhost:8081/health
+http://127.0.0.1:8081/health
 ```
 
 Once it returns `{"status":"ready"}`, start a game at **http://localhost:8080** and complete a round perfectly to hatch your first owl.
