@@ -117,41 +117,66 @@ def generate_procedural_owl(time_of_day: str):
     
     return base_data, fallback_prompt, fallback_story
 
+def clean_llm_response(text: str, max_words: int = 20):
+    """Truncate at first line break, first sentence, or word limit."""
+    if not text: return ""
+
+    
+    # Remove common conversational intros
+    fillers = ["Sure!", "Here is", "I'd be happy", "Certainly", "Ok, here", "Prompt:"]
+    for filler in fillers:
+        if text.lower().startswith(filler.lower()):
+            # Find the actual content after the filler
+            parts = text.split(":", 1)
+            if len(parts) > 1:
+                text = parts[1]
+            break
+            
+    # Take first line
+    # text = text.split('\n')[0].strip()
+    
+    # Truncate at first sentence ending (if not too early)
+    # for char in [". ", "! ", "? "]:
+    #     if char in text:
+    #         idx = text.find(char)
+    #         if idx > 10: # Avoid truncating "Mr. Owl"
+    #             text = text[:idx+1]
+    #             break
+
+    # Final word count limit
+    words = text.split()
+    if len(words) > max_words:
+        text = " ".join(words[:max_words]) + "..."
+        
+    return text.replace('"', '').strip()
+
 def embellish_owl_with_llm(traits: dict):
     try:
-        # Prompt Gemma to embellish the visual details and create a character
-        llm_prompt = (
-            f"Task: Create a character story and visual description for a 3D claymation owl.\n"
-            f"Base Traits: {traits['adjective']} owl, {traits['accessory']}, {traits['action']}.\n"
-            f"Environment: {traits['time_of_day']}.\n"
-            f"Art Style: Detailed 3D Claymation (tactile textures, clay fingerprints, lighting matching the {traits['time_of_day']}).\n"
-            f"Instructions:\n"
-            f"- Output exactly two lines.\n"
-            f"- Line 1 must start with 'PROMPT:' followed by a detailed visual prompt for an image generator.\n"
-            f"- Line 2 must start with 'STORY:' followed by a name and a charming sentence about the owl.\n"
-            f"Example:\n"
-            f"PROMPT: A tactile 3D claymation owl with fingerprint textures...\n"
-            f"STORY: Barnaby the Wise is reading a tiny scroll..."
+        # Call 1: The Story (Stricter word limit)
+        story_req = (
+            f"Create a name and a fun one-sentence story for this owl: "
+            f"{traits['adjective']} owl, {traits['accessory']}, {traits['action']} at {traits['time_of_day']}.\n"
+            f"No intro text."
         )
+        print(f"LLM Pass 1 (Story) requesting...", flush=True)
+        story_res = ollama.generate(model="llama3.2:1b", prompt=story_req, stream=False)
+        story = clean_llm_response(story_res['response'], max_words=50)
+
+        # Call 2: The Visuals (Just the creative details)
+        visual_req = (
+            f"Describe the appearance of this owl in one sentence: "
+            f"{traits['adjective']} owl, {traits['accessory']}, {traits['action']} at {traits['time_of_day']}.\n"
+            f"Focus on visual details only. No intro text."
+            f"{story}."
+        )
+        print(f"LLM Pass 2 (Visuals) requesting...", flush=True)
+        visual_res = ollama.generate(model="llama3.2:1b", prompt=visual_req, stream=False)
+        embellished_prompt = clean_llm_response(visual_res['response'], max_words=40)
         
-        response = ollama.generate(model="llama3.2", prompt=llm_prompt, stream=False)
-        text = response['response'].strip()
-        
-        embellished_prompt = ""
-        story = ""
-        
-        # Robust parsing for labels like **PROMPT:**, PROMPT:, Prompt:, etc.
-        for line in text.split('\n'):
-            clean_line = line.strip().replace("*", "")
-            if clean_line.upper().startswith("PROMPT:"):
-                embellished_prompt = clean_line[len("PROMPT:"):].strip()
-            elif clean_line.upper().startswith("STORY:"):
-                story = clean_line[len("STORY:"):].strip()
-        
-        # Validation
-        if not embellished_prompt or not story:
-            print(f"Parsing failed for LLM output:\n{text}", flush=True)
-            raise ValueError("LLM response format invalid")
+        # Validation: check if we got meaningful text back
+        if len(embellished_prompt) < 10 or len(story) < 5:
+            print(f"LLM Validation failed. Story: '{story}', Prompt: '{embellished_prompt}'", flush=True)
+            return None, None
             
         return embellished_prompt, story
         
@@ -181,9 +206,18 @@ def generate_owl(time_of_day: str = "afternoon"):
         print("Embellishing owl with LLM...", flush=True)
         embellished_prompt, story = embellish_owl_with_llm(traits)
 
-        # Use fallbacks if LLM fails
-        final_prompt = embellished_prompt if embellished_prompt else fallback_prompt
-        final_story = story if story else fallback_story
+        # Use fallbacks if LLM fails, otherwise MANUALLY ENHANCE the visual prompt
+        if embellished_prompt and story:
+            # We add the style and quality keywords ourselves to ensure consistency
+            # TODO: should use the style here, this could be factored out
+            final_prompt = (
+                f"Detailed 3D claymation Owl. {embellished_prompt}, "
+                f"set during the {time_of_day}, high detail, masterpiece, clean background, vibrant colors"
+            )
+            final_story = story
+        else:
+            final_prompt = fallback_prompt
+            final_story = fallback_story
 
         print(f"Final prompt for Diffusion: {final_prompt}", flush=True)
         print(f"Final story for UI: {final_story}", flush=True)
