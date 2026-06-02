@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import torch
 from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
 import ollama
+import string
 
 app = FastAPI(title="Owl Character Rewards API")
 
@@ -150,28 +151,30 @@ def clean_llm_response(text: str, max_words: int = 20):
         
     return text.replace('"', '').strip()
 
-def embellish_owl_with_llm(traits: dict):
+def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_words: int = 40):
     try:
-        # Call 1: The Story (Stricter word limit)
+        # Call 1: The Story
         story_req = (
-            f"Create a name and a fun one-sentence story for this owl: "
+            f"Create a name and a fun back story for this owl, it must be no more then {story_max_words} words: "
             f"{traits['adjective']} owl, {traits['accessory']}, {traits['action']} at {traits['time_of_day']}.\n"
-            f"No intro text."
+            f"No intro text. Provide the name first, then the story, separated by a colon ':'. "
+            f"Make the name original, starting with {random.choice(string.ascii_letters)}"
         )
         print(f"LLM Pass 1 (Story) requesting...", flush=True)
         story_res = ollama.generate(model="llama3.2:1b", prompt=story_req, stream=False)
-        story = clean_llm_response(story_res['response'], max_words=50)
+        story = clean_llm_response(story_res['response'], max_words=story_max_words)
 
-        # Call 2: The Visuals (Just the creative details)
+        # Call 2: The Visuals
         visual_req = (
-            f"Describe the appearance of this owl in one sentence: "
+            f"Describe the appearance of this owl in a prompt suitable for stable diffusion "
             f"{traits['adjective']} owl, {traits['accessory']}, {traits['action']} at {traits['time_of_day']}.\n"
             f"Focus on visual details only. No intro text."
-            f"{story}."
+            f"Here is some more detail about the owl: {story}."
+            f"Do not use more than {prompt_max_words} words"
         )
         print(f"LLM Pass 2 (Visuals) requesting...", flush=True)
         visual_res = ollama.generate(model="llama3.2:1b", prompt=visual_req, stream=False)
-        embellished_prompt = clean_llm_response(visual_res['response'], max_words=40)
+        embellished_prompt = clean_llm_response(visual_res['response'], max_words=prompt_max_words)
         
         # Validation: check if we got meaningful text back
         if len(embellished_prompt) < 10 or len(story) < 5:
@@ -227,7 +230,7 @@ def generate_owl(time_of_day: str = "afternoon"):
         with torch.inference_mode():
             image = pipeline(
                 prompt=final_prompt, 
-                num_inference_steps=10,
+                num_inference_steps=16,
                 guidance_scale=7.5,    
                 width=256,             
                 height=256

@@ -693,6 +693,95 @@
     padding: 0 2px;
   }
 
+  /* Trading Card Modal */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); /* More opaque to fully block underlying blur */
+    z-index: 100000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .modal-overlay.show { display: flex; animation: fadeIn 0.3s ease; }
+  
+  .trading-card {
+    background: #fff; /* Solid background to prevent seeing underlying blur */
+    border: 8px solid var(--accent);
+    border-radius: 24px;
+    width: 100%;
+    max-width: 360px;
+    position: relative;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: cardPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  body.night .trading-card {
+    background: #1e293b; /* Dark solid for night theme */
+  }
+  @keyframes cardPop {
+    from { transform: scale(0.8) translateY(20px); opacity: 0; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .card-image-wrap {
+    width: 100%;
+    aspect-ratio: 1;
+    background: #000;
+    position: relative;
+    border-bottom: 4px solid var(--accent);
+  }
+  .card-image-wrap img {
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .card-content {
+    padding: 24px;
+    background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.02));
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .card-name {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .card-story {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+  .close-modal {
+    position: absolute;
+    top: 12px; right: 12px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+
   @media (max-width: 768px) {
     header { padding: 16px; margin-bottom: 4px; }
     main { padding: 0 16px 24px; gap: 20px; }
@@ -738,6 +827,21 @@
     <div class="stat-badge collection-btn" onclick="openCollectionDrawer()">
       <span class="emoji">🦉</span> Owls: <strong id="owl-count">0</strong>
     </div>
+    <button id="btn-debug" style="
+      display: none;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      color: var(--text-muted);
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: all 0.2s ease;
+      font-family: 'Fredoka', sans-serif;
+    ">DEBUG: HATCH</button>
   </div>
 </header>
 
@@ -881,6 +985,22 @@ function buildNumerals() {
   }
 }
 
+function collectOwl(owl) {
+  const MAX_OWLS = 30;
+  state.owls.push(owl);
+  if (state.owls.length > MAX_OWLS) {
+    state.owls = state.owls.slice(-MAX_OWLS);
+  }
+  try {
+    localStorage.setItem('owls_collection', JSON.stringify(state.owls));
+  } catch (e) {
+    console.warn('localStorage full \u2014 oldest owl dropped.');
+    state.owls = state.owls.slice(1);
+    try { localStorage.setItem('owls_collection', JSON.stringify(state.owls)); } catch(_) {}
+  }
+  document.getElementById('owl-count').textContent = state.owls.length;
+}
+
 // ------- Drawer Actions -------
 function openCollectionDrawer() {
   const drawer = document.getElementById('collection-drawer');
@@ -899,6 +1019,8 @@ function openCollectionDrawer() {
     [...state.owls].reverse().forEach(owl => {
       const card = document.createElement('div');
       card.className = 'owl-card';
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', () => showOwlCard(owl));
       
       const img = document.createElement('img');
       img.src = owl.image;
@@ -922,6 +1044,56 @@ function closeCollectionDrawer() {
   document.getElementById('collection-drawer').classList.remove('open');
   document.getElementById('drawer-overlay').classList.remove('show');
 }
+
+// Trading Card Modal Actions
+function showOwlCard(owl) {
+  const overlay = document.getElementById('card-modal-overlay');
+  const img = document.getElementById('modal-owl-img');
+  const nameDiv = document.getElementById('modal-owl-name');
+  const storyDiv = document.getElementById('modal-owl-story');
+  
+  img.src = owl.image;
+  
+  // Parse story: Usually "[Name] is [Action]"
+  const story = owl.prompt || "";
+  const nameMatch = story.match(/^([^.]+?)(?:\s+is\s+)/i);
+  const name = nameMatch ? nameMatch[1] : "Mysterious Owl";
+  
+  nameDiv.textContent = name;
+  storyDiv.textContent = story;
+  
+  overlay.classList.add('show');
+}
+
+function closeOwlCard() {
+  document.getElementById('card-modal-overlay').classList.remove('show');
+}
+
+// Debug Mode: Instant Hatch
+document.getElementById('btn-debug').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-debug');
+  const originalText = btn.textContent;
+  
+  try {
+    btn.disabled = true;
+    btn.textContent = 'HATCHING...';
+    btn.style.opacity = '0.5';
+    
+    const owl = await fetchOwlReward();
+    collectOwl(owl);
+    
+    // Open drawer to show the result
+    openCollectionDrawer();
+    
+  } catch (err) {
+    console.error('Debug hatch failed:', err);
+    alert('Hatch failed. Check server console.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+    btn.style.opacity = '1';
+  }
+});
 
 // ------- Procedural Fallback SVG Owl Generator -------
 function generateSvgOwl() {
@@ -1403,6 +1575,8 @@ function renderStep4() {
       
       const owlCard = document.createElement('div');
       owlCard.className = 'owl-reward-card';
+      owlCard.style.cursor = 'pointer';
+      owlCard.addEventListener('click', () => showOwlCard(owl));
       
       const img = document.createElement('img');
       img.src = owl.image;
@@ -1423,22 +1597,7 @@ function renderStep4() {
       // next is now fully initialised — safe to use as anchor
       reveal.insertBefore(owlCard, next);
       
-      // Save owl — cap at 30 to avoid exceeding localStorage quota
-      const MAX_OWLS = 30;
-      state.owls.push(owl);
-      if (state.owls.length > MAX_OWLS) {
-        state.owls = state.owls.slice(-MAX_OWLS);
-      }
-      try {
-        localStorage.setItem('owls_collection', JSON.stringify(state.owls));
-      } catch (e) {
-        console.warn('localStorage full — oldest owl dropped.');
-        state.owls = state.owls.slice(1);
-        try { localStorage.setItem('owls_collection', JSON.stringify(state.owls)); } catch(_) {}
-      }
-      
-      // Update counts
-      document.getElementById('owl-count').textContent = state.owls.length;
+      collectOwl(owl);
       state.streak += 1;
       
       const streakBadge = document.getElementById('streak-badge');
@@ -1672,7 +1831,29 @@ function setOverlays(step) {
 buildTicks();
 buildNumerals();
 confettiInit();
+
+// Show debug button if ?debug=true is in the URL
+const params = new URLSearchParams(window.location.search);
+if (params.get('debug') === 'true') {
+  document.getElementById('btn-debug').style.display = 'block';
+}
+
 newClock();
 </script>
+
+<!-- Trading Card Modal (End of body for isolation) -->
+<div class="modal-overlay" id="card-modal-overlay" onclick="closeOwlCard()">
+  <div class="trading-card" onclick="event.stopPropagation()">
+    <button class="close-modal" onclick="closeOwlCard()">&times;</button>
+    <div class="card-image-wrap">
+      <img id="modal-owl-img" src="" alt="Owl">
+    </div>
+    <div class="card-content">
+      <div class="card-name" id="modal-owl-name">Owl Name</div>
+      <div class="card-story" id="modal-owl-story">Owl story goes here...</div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
