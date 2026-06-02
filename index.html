@@ -1001,6 +1001,23 @@ function collectOwl(owl) {
   document.getElementById('owl-count').textContent = state.owls.length;
 }
 
+function parseOwlText(text) {
+  const fullText = text || "";
+  if (fullText.includes(':')) {
+    const parts = fullText.split(':');
+    return {
+      name: parts[0].trim(),
+      story: parts.slice(1).join(':').trim()
+    };
+  }
+  // Fallback for older entries
+  const nameMatch = fullText.match(/^([^.]+?)(?:\s+is\s+)/i);
+  return {
+    name: nameMatch ? nameMatch[1] : "Mysterious Owl",
+    story: fullText
+  };
+}
+
 // ------- Drawer Actions -------
 function openCollectionDrawer() {
   const drawer = document.getElementById('collection-drawer');
@@ -1024,11 +1041,11 @@ function openCollectionDrawer() {
       
       const img = document.createElement('img');
       img.src = owl.image;
-      img.alt = owl.prompt;
       
+      const parsed = parseOwlText(owl.prompt);
       const span = document.createElement('span');
-      span.textContent = owl.prompt.split(' (Local')[0]; // strip the local label for a cleaner display
-      span.title = owl.prompt;
+      span.textContent = parsed.name;
+      span.title = parsed.name;
       
       card.appendChild(img);
       card.appendChild(span);
@@ -1054,13 +1071,9 @@ function showOwlCard(owl) {
   
   img.src = owl.image;
   
-  // Parse story: Usually "[Name] is [Action]"
-  const story = owl.prompt || "";
-  const nameMatch = story.match(/^([^.]+?)(?:\s+is\s+)/i);
-  const name = nameMatch ? nameMatch[1] : "Mysterious Owl";
-  
-  nameDiv.textContent = name;
-  storyDiv.textContent = story;
+  const parsed = parseOwlText(owl.prompt);
+  nameDiv.textContent = parsed.name;
+  storyDiv.textContent = parsed.story;
   
   overlay.classList.add('show');
 }
@@ -1580,11 +1593,11 @@ function renderStep4() {
       
       const img = document.createElement('img');
       img.src = owl.image;
-      img.alt = owl.prompt;
       
+      const parsed = parseOwlText(owl.prompt);
       const promptText = document.createElement('div');
       promptText.className = 'owl-prompt';
-      promptText.textContent = owl.prompt.split(' (Local')[0];
+      promptText.textContent = parsed.name;
       
       const successText = document.createElement('div');
       successText.className = 'got-owl-text';

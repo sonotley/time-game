@@ -99,9 +99,8 @@ def generate_procedural_owl(time_of_day: str):
     acc = random.choice(FALLBACK_OWL_TEMPLATES["accessories"])
     act = random.choice(FALLBACK_OWL_TEMPLATES["actions"])
     
-    # Fixed style: Detailed 3D Claymation
     base_data = {
-        "style": "Detailed 3D Claymation",
+        "style": "High quality pixar animation",
         "adjective": adj,
         "accessory": acc,
         "action": act,
@@ -169,6 +168,7 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
             f"Describe the appearance of this owl in a prompt suitable for stable diffusion "
             f"{traits['adjective']} owl, {traits['accessory']}, {traits['action']} at {traits['time_of_day']}.\n"
             f"Focus on visual details only. No intro text."
+            f"Explicitly describe the basic physical details of the scene, what is in it, what colour, what size, what shape, how are the things positioned, etc."
             f"Here is some more detail about the owl: {story}."
             f"Do not use more than {prompt_max_words} words"
         )
@@ -212,9 +212,8 @@ def generate_owl(time_of_day: str = "afternoon"):
         # Use fallbacks if LLM fails, otherwise MANUALLY ENHANCE the visual prompt
         if embellished_prompt and story:
             # We add the style and quality keywords ourselves to ensure consistency
-            # TODO: should use the style here, this could be factored out
             final_prompt = (
-                f"Detailed 3D claymation Owl. {embellished_prompt}, "
+                f"An owl, {traits['style']}. {embellished_prompt}, "
                 f"set during the {time_of_day}, high detail, masterpiece, clean background, vibrant colors"
             )
             final_story = story
@@ -231,7 +230,7 @@ def generate_owl(time_of_day: str = "afternoon"):
             image = pipeline(
                 prompt=final_prompt, 
                 num_inference_steps=16,
-                guidance_scale=7.5,    
+                guidance_scale=7,    
                 width=256,             
                 height=256
             ).images[0]
