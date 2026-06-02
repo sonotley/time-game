@@ -20,7 +20,7 @@ app.add_middleware(
 # 1. Device and Budget Memory Selection
 if torch.backends.mps.is_available():
     device = "mps"
-    torch_dtype = torch.float32 
+    torch_dtype = torch.float16 # UNet speedup
 elif torch.cuda.is_available():
     device = "cuda"
     torch_dtype = torch.float16
@@ -39,6 +39,11 @@ try:
         torch_dtype=torch_dtype,
         use_safetensors=False
     )
+    # Hybrid Precision: M1 chips need VAE in float32 to avoid black images (NaNs)
+    # but the UNet runs significantly faster in float16.
+    if device == "mps":
+        pipeline.vae.to(dtype=torch.float32)
+
     # Tiny-SD works much better with DPM++ scheduler for few-step generation
     pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
     
@@ -53,6 +58,14 @@ try:
         
     print(f"Tiny-SD loaded successfully on {device.upper()}!", flush=True)
     pipeline.safety_checker = None
+
+    # Step 2.5: Model Warmup (Pre-loads weights into GPU memory)
+    if device == "mps":
+        print("Warming up model...", flush=True)
+        with torch.inference_mode():
+            pipeline(prompt="warmup", num_inference_steps=1, width=128, height=128)
+        print("Warmup complete!", flush=True)
+
 except Exception as e:
     print(f"Error loading pipeline: {e}", flush=True)
     pipeline = None
@@ -184,7 +197,7 @@ def generate_owl(time_of_day: str = "afternoon"):
         with torch.inference_mode():
             image = pipeline(
                 prompt=final_prompt, 
-                num_inference_steps=12,
+                num_inference_steps=10,
                 guidance_scale=7.5,    
                 width=256,             
                 height=256
