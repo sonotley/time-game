@@ -59,46 +59,96 @@ except Exception as e:
     pipeline_load_error = str(e)
 
 FALLBACK_OWL_TEMPLATES = {
-    "styles": ["vibrant oil painting", "cute 3D claymation", "detailed digital art", "cozy felted wool craft style", "chibi watercolor"],
-    "adjectives": ["cozy", "wizard", "steampunk", "detective", "astronaut", "chef", "gardener", "pirate", "scholar", "sleepy"],
-    "accessories": ["wearing a tiny top hat", "wearing glowing brass goggles", "holding a miniature magical book", "wearing a soft knitted scarf", "wearing a tiny chef hat", "wearing an astronaut helmet", "holding a small wooden magnifying glass", "wearing a pirate eyepatch"],
-    "actions": ["sitting on a branch", "reading a scroll", "drinking a cup of tea", "holding a golden star", "surrounded by magic runes", "staring with huge eyes"]
+    "adjectives": [
+        "cozy", "wizard", "steampunk", "detective", "astronaut", "chef", "gardener", "pirate", "scholar", "sleepy",
+        "grumpy", "majestic", "spunky", "bashful", "elegant", "clumsy", "sporty", "brave", "curious", "dapper",
+        "eccentric", "friendly", "gloomy", "heroic", "mischievous", "puzzled", "radiant", "studious", "timid", "wild"
+    ],
+    "accessories": [
+        "wearing a tiny top hat", "wearing glowing brass goggles", "holding a miniature magical book", 
+        "wearing a soft knitted scarf", "wearing a tiny chef hat", "wearing an astronaut helmet", 
+        "holding a small wooden magnifying glass", "wearing a pirate eyepatch", "wearing a flower crown",
+        "carrying a tiny backpack", "holding a glowing lantern", "wearing a bright red bowtie",
+        "wearing a oversized sweater", "holding a golden key", "wearing a silver monocle",
+        "carrying a small wicker basket", "wearing a yellow raincoat", "holding a single colorful feather",
+        "wearing a string of pearls", "holding a miniature telescope", "wearing a fuzzy earmuff",
+        "carrying a small compass", "wearing a tiny superhero cape", "holding a small paintbrush"
+    ],
+    "actions": [
+        "sitting on a branch", "reading a scroll", "drinking a cup of tea", "holding a golden star", 
+        "surrounded by magic runes", "staring with huge eyes", "balancing on a stack of books",
+        "peering out of a hollow tree", "tending to a small sprout", "examining a clock gear",
+        "waving a tiny flag", "polishing a gemstone", "sketching in a notebook", "listening to a seashell",
+        "adjusting their glasses", "counting some silver coins", "nibbling on a cracker", "sleeping on a cloud",
+        "playing a tiny flute", "mixing a potion", "braiding some straw", "gazing at a compass"
+    ]
 }
 
-def generate_fallback_prompt():
-    style = random.choice(FALLBACK_OWL_TEMPLATES["styles"])
+def generate_procedural_owl(time_of_day: str):
     adj = random.choice(FALLBACK_OWL_TEMPLATES["adjectives"])
     acc = random.choice(FALLBACK_OWL_TEMPLATES["accessories"])
     act = random.choice(FALLBACK_OWL_TEMPLATES["actions"])
-    return f"{style} of a {adj} owl, {acc}, {act}, clean solid background, high detail, masterpiece"
+    
+    # Fixed style: Detailed 3D Claymation
+    base_data = {
+        "style": "Detailed 3D Claymation",
+        "adjective": adj,
+        "accessory": acc,
+        "action": act,
+        "time_of_day": time_of_day
+    }
+    
+    # Simple fallback prompt for SD if LLM fails
+    fallback_prompt = (
+        f"Detailed 3D claymation of a {adj} owl, {acc}, {act}, "
+        f"set during the {time_of_day}, clean solid background, high detail, masterpiece"
+    )
+    # Simple fallback story for UI if LLM fails
+    fallback_story = f"A {adj} owl is {act}."
+    
+    return base_data, fallback_prompt, fallback_story
 
-def get_ollama_prompt():
+def embellish_owl_with_llm(traits: dict):
     try:
-        # Use a more descriptive and strict prompt for Gemma
-        response = ollama.generate(
-            model="gemma:2b",
-            prompt=(
-                "Task: Write a high-quality image generation prompt for a cute owl character.\n"
-                "Constraints:\n"
-                "- One sentence only.\n"
-                "- Include a specific artistic style (e.g., '3D claymation', 'vibrant digital art').\n"
-                "- Include one funny accessory and one action.\n"
-                "- End with 'clean solid background, high detail'.\n"
-                "- Do NOT use any introductory text or conversational filler.\n"
-                "Example: A cute 3D claymation owl wearing a tiny chef hat and holding a spatula, clean solid background, high detail."
-            ),
-            stream=False
+        # Prompt Gemma to embellish the visual details and create a character
+        llm_prompt = (
+            f"Task: Create a character story and visual description for a 3D claymation owl.\n"
+            f"Base Traits: {traits['adjective']} owl, {traits['accessory']}, {traits['action']}.\n"
+            f"Environment: {traits['time_of_day']}.\n"
+            f"Art Style: Detailed 3D Claymation (tactile textures, clay fingerprints, lighting matching the {traits['time_of_day']}).\n"
+            f"Instructions:\n"
+            f"- Output exactly two lines.\n"
+            f"- Line 1 must start with 'PROMPT:' followed by a detailed visual prompt for an image generator.\n"
+            f"- Line 2 must start with 'STORY:' followed by a name and a charming sentence about the owl.\n"
+            f"Example:\n"
+            f"PROMPT: A tactile 3D claymation owl with fingerprint textures...\n"
+            f"STORY: Barnaby the Wise is reading a tiny scroll..."
         )
-        # Clean up the response to ensure no extra text
-        lines = response['response'].strip().split('\n')
-        prompt = lines[-1].strip().replace('"', '')
-        if len(prompt) < 10: prompt = generate_fallback_prompt()
-        return prompt
+        
+        response = ollama.generate(model="llama3.2", prompt=llm_prompt, stream=False)
+        text = response['response'].strip()
+        
+        embellished_prompt = ""
+        story = ""
+        
+        # Robust parsing for labels like **PROMPT:**, PROMPT:, Prompt:, etc.
+        for line in text.split('\n'):
+            clean_line = line.strip().replace("*", "")
+            if clean_line.upper().startswith("PROMPT:"):
+                embellished_prompt = clean_line[len("PROMPT:"):].strip()
+            elif clean_line.upper().startswith("STORY:"):
+                story = clean_line[len("STORY:"):].strip()
+        
+        # Validation
+        if not embellished_prompt or not story:
+            print(f"Parsing failed for LLM output:\n{text}", flush=True)
+            raise ValueError("LLM response format invalid")
+            
+        return embellished_prompt, story
+        
     except Exception as e:
-        # Diagnostic printing to catch precisely why the framework failed
-        print(f"Ollama connection or execution failed: {e}")
-        print("Falling back to local template generator.")
-        return generate_fallback_prompt()
+        print(f"Ollama embellishment failed: {e}", flush=True)
+        return None, None
 
 @app.get("/health")
 def health():
@@ -108,40 +158,51 @@ def health():
 
 
 @app.get("/generate-owl")
-def generate_owl():
-    print("Received owl generation request...", flush=True)
+def generate_owl(time_of_day: str = "afternoon"):
+    print(f"Received owl generation request for {time_of_day}...", flush=True)
     if not pipeline:
         error_msg = f"Stable Diffusion pipeline is not loaded. Load error: {pipeline_load_error}"
         print(f"Error: {error_msg}", flush=True)
         raise HTTPException(status_code=500, detail=error_msg)
     try:
-        # Step 1: Securely obtain the text prompt string
-        print("Generating prompt with Ollama...", flush=True)
-        prompt = get_ollama_prompt()
-        print(f"Final prompt for Diffusion: {prompt}", flush=True)
-        
-        # Step 2: Run Tiny-SD 
+        # Step 1: Generate procedural base
+        traits, fallback_prompt, fallback_story = generate_procedural_owl(time_of_day)
+
+        # Step 2: Embellish with LLM
+        print("Embellishing owl with LLM...", flush=True)
+        embellished_prompt, story = embellish_owl_with_llm(traits)
+
+        # Use fallbacks if LLM fails
+        final_prompt = embellished_prompt if embellished_prompt else fallback_prompt
+        final_story = story if story else fallback_story
+
+        print(f"Final prompt for Diffusion: {final_prompt}", flush=True)
+        print(f"Final story for UI: {final_story}", flush=True)
+
+        # Step 3: Run Tiny-SD 
         print("Starting Diffusion inference (this may take a while)...", flush=True)
         with torch.inference_mode():
             image = pipeline(
-                prompt=prompt, 
-                num_inference_steps=12, # Increased for better clarity
+                prompt=final_prompt, 
+                num_inference_steps=12,
                 guidance_scale=7.5,    
                 width=256,             
                 height=256
             ).images[0]
         print("Inference complete!", flush=True)
-        
-        # Step 3: Base64 Encode output
+
+        # Step 4: Base64 Encode output
         buffered = BytesIO()
         image.save(buffered, format="PNG")
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-        
+
         print("Returning generated owl.", flush=True)
         return {
-            "prompt": prompt,
+            "prompt": final_prompt,
+            "story": final_story,
             "image": f"data:image/png;base64,{img_str}"
         }
+
     except Exception as e:
         error_msg = f"Generation failed during inference: {str(e)}"
         print(error_msg)

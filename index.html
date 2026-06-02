@@ -1002,8 +1002,14 @@ async function fetchOwlReward() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 300000); // 300s cutoff
     
-    console.log('Requesting AI owl from server...');
-    const response = await fetch('http://localhost:8081/generate-owl', {
+    // Get current time of day from body class
+    let theme = "afternoon";
+    if (document.body.classList.contains("morning")) theme = "morning";
+    else if (document.body.classList.contains("sunset")) theme = "sunset";
+    else if (document.body.classList.contains("night")) theme = "night";
+
+    console.log(`Requesting AI owl from server for ${theme}...`);
+    const response = await fetch(`http://localhost:8081/generate-owl?time_of_day=${theme}`, {
       method: 'GET',
       mode: 'cors',
       cache: 'no-cache',
@@ -1020,7 +1026,7 @@ async function fetchOwlReward() {
     }
     const data = await response.json();
     console.log('AI owl received successfully!');
-    return { prompt: data.prompt, image: data.image };
+    return { prompt: data.story || data.prompt, image: data.image };
   } catch (err) {
     if (err.name === 'AbortError') {
       console.error('Owl generation timed out after 300s');
@@ -1640,10 +1646,10 @@ function setOverlays(step) {
     let startMin, endMin;
     if (past) {
       startMin = 0;
-      endMin = state.minute;
+      endMin = state.minute - 0.8; // End early so arrowhead tip is on target
     } else {
       startMin = state.minute;
-      endMin = 60;
+      endMin = 60 - 0.8; // End early so arrowhead tip is on target
     }
     
     const start = getCoords(startMin, r);
