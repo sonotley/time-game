@@ -20,7 +20,7 @@ app.add_middleware(
 # 1. Device and Budget Memory Selection
 if torch.backends.mps.is_available():
     device = "mps"
-    torch_dtype = torch.float16 # UNet speedup
+    torch_dtype = torch.float32 # Stable for M1
 elif torch.cuda.is_available():
     device = "cuda"
     torch_dtype = torch.float16
@@ -39,13 +39,6 @@ try:
         torch_dtype=torch_dtype,
         use_safetensors=False
     )
-    # Hybrid Precision: M1 chips need VAE in float32 to avoid black images (NaNs)
-    # but the UNet runs significantly faster in float16.
-    if device == "mps":
-        pipeline.vae.to(dtype=torch.float32)
-
-    # Tiny-SD works much better with DPM++ scheduler for few-step generation
-    pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
     
     # Aggressive memory optimization configurations for tight 8GB setups
     if device in ["cuda", "mps"]:
@@ -58,6 +51,9 @@ try:
         
     print(f"Tiny-SD loaded successfully on {device.upper()}!", flush=True)
     pipeline.safety_checker = None
+
+    # Tiny-SD works much better with DPM++ scheduler for few-step generation
+    pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
 
     # Step 2.5: Model Warmup (Pre-loads weights into GPU memory)
     if device == "mps":
