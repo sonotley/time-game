@@ -4,7 +4,7 @@ import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import torch
-from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
+from diffusers import StableDiffusionPipeline, LCMScheduler
 import ollama
 import string
 import time
@@ -24,7 +24,7 @@ app.add_middleware(
 # 1. Device and Budget Memory Selection
 if torch.backends.mps.is_available():
     device = "mps"
-    torch_dtype = torch.float32 # Stable for M1
+    torch_dtype = torch.float32 # Restore float32 for MPS stability
 elif torch.cuda.is_available():
     device = "cuda"
     torch_dtype = torch.float16
@@ -34,46 +34,37 @@ else:
 
 print(f"Loading Stable Diffusion onto device: {device.upper()}...")
 
-# 2. Load Tiny-SD (Optimized for 8GB RAM and speed)
+# 2. Load Dreamshaper-8-LCM (High quality + 4-step generation)
 pipeline_load_error = None
 try:
-    model_id = "segmind/Tiny-SD" 
+    model_id = "Lykon/dreamshaper-8-lcm" 
     
     pipeline = StableDiffusionPipeline.from_pretrained(
         model_id, 
         torch_dtype=torch_dtype,
-        use_safetensors=False
+        use_safetensors=True
     )
     
-    # Aggressive memory optimization configurations for tight 8GB setups
+    # Use the baked-in LCM Scheduler
+    pipeline.scheduler = LCMScheduler.from_config(pipeline.scheduler.config)
+
+    # Aggressive memory management for 8GB Mac
     if device in ["cuda", "mps"]:
-        pipeline.to(device)
+        # Sequential offload is essential for a 4GB (float32) model on 8GB RAM
+        pipeline.enable_sequential_cpu_offload()
         pipeline.enable_attention_slicing()
-        
-        # Re-enabling VAE memory optimizations
-        pipeline.enable_vae_slicing()
-        pipeline.enable_vae_tiling()
-        
-        if device == "cuda":
-            pipeline.enable_model_cpu_offload()
     else:
         pipeline.to("cpu")
         
-    print(f"Tiny-SD loaded successfully on {device.upper()}!", flush=True)
+    print(f"Dreamshaper-8-LCM loaded successfully on {device.upper()}!", flush=True)
     pipeline.safety_checker = None
-
-    # Tiny-SD works much better with DPM++ scheduler for few-step generation
-    pipeline.scheduler = DPMSolverMultistepScheduler.from_config(
-        pipeline.scheduler.config,
-        use_karras_sigmas=True # Added Karras sigmas for significantly cleaner results
-    )
 
     # Step 2.5: Model Warmup (Pre-loads weights into GPU memory)
     if device == "mps":
         print("Warming up model...", flush=True)
         with torch.inference_mode():
-            # Warmup must match the target resolution to properly pre-allocate memory
-            pipeline(prompt="warmup", num_inference_steps=20, guidance_scale=7.5, width=512, height=512)
+            # Warmup for LCM: 6 steps, 2.0 guidance
+            pipeline(prompt="warmup", num_inference_steps=6, guidance_scale=2.0, width=512, height=512)
         print("Warmup complete!", flush=True)
 
 except Exception as e:
@@ -268,15 +259,15 @@ def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str 
         print(f"Final prompt for Diffusion: {final_prompt}", flush=True)
         print(f"Final story for UI: {final_story}", flush=True)
 
-        # Step 3: Run Tiny-SD 
+        # Step 3: Run Dreamshaper-8-LCM
         neg = "indistinct, flat, bad anatomy, deformed, blurry, low quality, distorted, extra limbs, bad hands, missing fingers, muddy textures, grainy, text, watermark"
         print("Starting Diffusion inference (this may take a while)...", flush=True)
         with torch.inference_mode():
             image = pipeline(
                 prompt=final_prompt,
                 negative_prompt=neg,
-                num_inference_steps=20,     
-                guidance_scale=7.5,        
+                num_inference_steps=6,     # Dreamshaper-LCM is ultra-fast
+                guidance_scale=2.0,        # Guidance scale for LCM should be low (1.0-2.0)
                 width=512,             
                 height=512
             ).images[0]
