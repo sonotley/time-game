@@ -60,8 +60,9 @@ try:
 
     # Aggressive memory management for 8GB Mac
     if device in ["cuda", "mps"]:
-        # model_cpu_offload is faster than sequential_offload as it moves components in larger blocks
-        pipeline.enable_model_cpu_offload()
+        # With float16 (2GB), the model should fit in 8GB RAM without offloading.
+        # Direct .to(device) is MUCH faster than offloading.
+        pipeline.to(device)
         pipeline.enable_attention_slicing()
     else:
         pipeline.to("cpu")
