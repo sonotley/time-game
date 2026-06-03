@@ -4,7 +4,7 @@ import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import torch
-from diffusers import StableDiffusionPipeline, LCMScheduler, AutoencoderKL
+from diffusers import StableDiffusionPipeline, LCMScheduler, AutoencoderTiny
 import ollama
 import string
 import time
@@ -32,23 +32,27 @@ else:
     device = "cpu"
     torch_dtype = torch.float32
 
-print(f"Loading Stable Diffusion onto device: {device.upper()}...")
+print(f"Loading Stable Diffusion onto device: {device.upper()}...", flush=True)
 
 # 2. Load Dreamshaper-8-LCM (High quality + 4-step generation)
 pipeline_load_error = None
 try:
     model_id = "Lykon/dreamshaper-8-lcm" 
-    
+
     # Load TAESD (Microscopic VAE for instant decoding)
+    # Using AutoencoderTiny specifically for the TAESD architecture
     print("Loading TAESD VAE...", flush=True)
-    taesd = AutoencoderKL.from_pretrained("madebyollin/taesd", torch_dtype=torch_dtype)
+    taesd = AutoencoderTiny.from_pretrained("madebyollin/taesd", torch_dtype=torch_dtype)
 
     pipeline = StableDiffusionPipeline.from_pretrained(
         model_id, 
-        vae=taesd, # Inject the tiny VAE
+        vae=taesd,
         torch_dtype=torch_dtype,
-        use_safetensors=True
+        use_safetensors=True,
+        low_cpu_mem_usage=False, # Fixes "Cannot copy out of meta tensor" crash
+        device_map=None          # Ensures manual placement works on MPS
     )
+
     
     # Stability Fix: CLIP Text Encoder on MPS crashes in float16
     if device == "mps":
