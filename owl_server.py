@@ -4,7 +4,7 @@ import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import torch
-from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler, AutoencoderKL
+from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
 import ollama
 import string
 import time
@@ -39,18 +39,27 @@ pipeline_load_error = None
 try:
     model_id = "segmind/Tiny-SD" 
     
-    # Load TAESD (Microscopic VAE for instant decoding)
-    print("Loading TAESD VAE...", flush=True)
-    taesd = AutoencoderKL.from_pretrained("madebyollin/taesd", torch_dtype=torch_dtype)
-
     pipeline = StableDiffusionPipeline.from_pretrained(
         model_id, 
-        vae=taesd, # Inject the tiny VAE
         torch_dtype=torch_dtype,
         use_safetensors=False
     )
     
-    print(f"Tiny-SD + TAESD loaded successfully on {device.upper()}!", flush=True)
+    # Aggressive memory optimization configurations for tight 8GB setups
+    if device in ["cuda", "mps"]:
+        pipeline.to(device)
+        pipeline.enable_attention_slicing()
+        
+        # Re-enabling VAE memory optimizations
+        pipeline.enable_vae_slicing()
+        pipeline.enable_vae_tiling()
+        
+        if device == "cuda":
+            pipeline.enable_model_cpu_offload()
+    else:
+        pipeline.to("cpu")
+        
+    print(f"Tiny-SD loaded successfully on {device.upper()}!", flush=True)
     pipeline.safety_checker = None
 
     # Tiny-SD works much better with DPM++ scheduler for few-step generation
