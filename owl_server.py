@@ -24,7 +24,7 @@ app.add_middleware(
 # 1. Device and Budget Memory Selection
 if torch.backends.mps.is_available():
     device = "mps"
-    torch_dtype = torch.float32 # Restore float32 for MPS stability
+    torch_dtype = torch.float16 # Optimized for M1
 elif torch.cuda.is_available():
     device = "cuda"
     torch_dtype = torch.float16
@@ -45,6 +45,11 @@ try:
         use_safetensors=True
     )
     
+    # Stability Fix: CLIP Text Encoder on MPS crashes in float16
+    if device == "mps":
+        print("Applying float32 stability fix to Text Encoder...", flush=True)
+        pipeline.text_encoder.to(dtype=torch.float32)
+
     # Use the baked-in LCM Scheduler
     pipeline.scheduler = LCMScheduler.from_config(pipeline.scheduler.config)
 
