@@ -74,7 +74,7 @@ try:
         print("Warming up model...", flush=True)
         with torch.inference_mode():
             # Warmup for LCM: 6 steps, 2.0 guidance
-            pipeline(prompt="warmup", num_inference_steps=6, guidance_scale=2.0, width=512, height=512)
+            pipeline(prompt="warmup", num_inference_steps=6, guidance_scale=2.0, width=384, height=384)
         print("Warmup complete!", flush=True)
 
 except Exception as e:
@@ -278,8 +278,8 @@ def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str 
                 negative_prompt=neg,
                 num_inference_steps=6,     # Dreamshaper-LCM is ultra-fast
                 guidance_scale=2.0,        # Guidance scale for LCM should be low (1.0-2.0)
-                width=512,             
-                height=512
+                width=384,             
+                height=384
             ).images[0]
         print("Inference complete!", flush=True)
 
