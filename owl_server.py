@@ -7,6 +7,9 @@ import torch
 from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
 import ollama
 import string
+import time
+
+random.seed(time.time())
 
 app = FastAPI(title="Owl Character Rewards API")
 
@@ -45,6 +48,11 @@ try:
     if device in ["cuda", "mps"]:
         pipeline.to(device)
         pipeline.enable_attention_slicing()
+        
+        # NEW: These prevent the massive memory spike during the final image decode phase
+        pipeline.enable_vae_slicing()
+        pipeline.enable_vae_tiling()
+        
         if device == "cuda":
             pipeline.enable_model_cpu_offload()
     else:
@@ -54,13 +62,17 @@ try:
     pipeline.safety_checker = None
 
     # Tiny-SD works much better with DPM++ scheduler for few-step generation
-    pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
+    pipeline.scheduler = DPMSolverMultistepScheduler.from_config(
+        pipeline.scheduler.config,
+        use_karras_sigmas=True # Added Karras sigmas for significantly cleaner results
+    )
 
     # Step 2.5: Model Warmup (Pre-loads weights into GPU memory)
     if device == "mps":
         print("Warming up model...", flush=True)
         with torch.inference_mode():
-            pipeline(prompt="warmup", num_inference_steps=1, width=128, height=128)
+            # Warmup must match the target resolution to properly pre-allocate memory
+            pipeline(prompt="warmup", num_inference_steps=1, width=512, height=512)
         print("Warmup complete!", flush=True)
 
 except Exception as e:
@@ -121,7 +133,6 @@ def clean_llm_response(text: str, max_words: int = 20):
     """Truncate at first line break, first sentence, or word limit."""
     if not text: return ""
 
-    
     # Remove common conversational intros
     fillers = ["Sure!", "Here is", "I'd be happy", "Certainly", "Ok, here", "Prompt:"]
     for filler in fillers:
@@ -131,17 +142,6 @@ def clean_llm_response(text: str, max_words: int = 20):
             if len(parts) > 1:
                 text = parts[1]
             break
-            
-    # Take first line
-    # text = text.split('\n')[0].strip()
-    
-    # Truncate at first sentence ending (if not too early)
-    # for char in [". ", "! ", "? "]:
-    #     if char in text:
-    #         idx = text.find(char)
-    #         if idx > 10: # Avoid truncating "Mr. Owl"
-    #             text = text[:idx+1]
-    #             break
 
     # Final word count limit
     words = text.split()
@@ -157,10 +157,20 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
             f"Create a name and a fun back story for this owl, it must be no more then {story_max_words} words: "
             f"{traits['adjective']} owl, {traits['accessory']}, {traits['action']} at {traits['time_of_day']}.\n"
             f"No intro text. Provide the name first, then the story, separated by a colon ':'. "
-            f"Make the name original, starting with {random.choice(string.ascii_letters)}"
+            f"The name *must* start with the letter {random.choice(string.ascii_letters)}"
         )
         print(f"LLM Pass 1 (Story) requesting...", flush=True)
-        story_res = ollama.generate(model="llama3.2:1b", prompt=story_req, stream=False)
+        print(story_req)
+        story_res = ollama.generate(
+            model="llama3.2:1b", 
+            prompt=story_req, 
+            stream=False, 
+            # keep_alive=0,
+            options={
+                "temperature": 0.9,  # Increases creativity/randomness
+                "seed": random.randint(0, 999999) # Forces a new probability tree
+            }
+        )
         story = clean_llm_response(story_res['response'], max_words=story_max_words)
 
         # Call 2: The Visuals
@@ -173,7 +183,8 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
             f"Do not use more than {prompt_max_words} words"
         )
         print(f"LLM Pass 2 (Visuals) requesting...", flush=True)
-        visual_res = ollama.generate(model="llama3.2:1b", prompt=visual_req, stream=False)
+        print(visual_req)
+        visual_res = ollama.generate(model="llama3.2:1b", prompt=visual_req, stream=False, keep_alive=0)
         embellished_prompt = clean_llm_response(visual_res['response'], max_words=prompt_max_words)
         
         # Validation: check if we got meaningful text back
@@ -232,8 +243,8 @@ def generate_owl(time_of_day: str = "afternoon"):
             image = pipeline(
                 prompt=final_prompt,
                 negative_prompt=neg,
-                num_inference_steps=24,
-                guidance_scale=5,    
+                num_inference_steps=20,
+                guidance_scale=7.5,    
                 width=512,             
                 height=512
             ).images[0]
