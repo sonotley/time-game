@@ -4,7 +4,7 @@ import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import torch
-from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
+from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler, AutoencoderKL
 import ollama
 import string
 import time
@@ -38,27 +38,19 @@ print(f"Loading Stable Diffusion onto device: {device.upper()}...")
 pipeline_load_error = None
 try:
     model_id = "segmind/Tiny-SD" 
+    
+    # Load TAESD (Microscopic VAE for instant decoding)
+    print("Loading TAESD VAE...", flush=True)
+    taesd = AutoencoderKL.from_pretrained("madebyollin/taesd", torch_dtype=torch_dtype)
+
     pipeline = StableDiffusionPipeline.from_pretrained(
         model_id, 
+        vae=taesd, # Inject the tiny VAE
         torch_dtype=torch_dtype,
         use_safetensors=False
     )
     
-    # Aggressive memory optimization configurations for tight 8GB setups
-    if device in ["cuda", "mps"]:
-        pipeline.to(device)
-        pipeline.enable_attention_slicing()
-        
-        # NEW: These prevent the massive memory spike during the final image decode phase
-        pipeline.enable_vae_slicing()
-        pipeline.enable_vae_tiling()
-        
-        if device == "cuda":
-            pipeline.enable_model_cpu_offload()
-    else:
-        pipeline.to("cpu")
-        
-    print(f"Tiny-SD loaded successfully on {device.upper()}!", flush=True)
+    print(f"Tiny-SD + TAESD loaded successfully on {device.upper()}!", flush=True)
     pipeline.safety_checker = None
 
     # Tiny-SD works much better with DPM++ scheduler for few-step generation
@@ -72,7 +64,7 @@ try:
         print("Warming up model...", flush=True)
         with torch.inference_mode():
             # Warmup must match the target resolution to properly pre-allocate memory
-            pipeline(prompt="warmup", num_inference_steps=1, width=512, height=512)
+            pipeline(prompt="warmup", num_inference_steps=20, guidance_scale=7.5, width=512, height=512)
         print("Warmup complete!", flush=True)
 
 except Exception as e:
@@ -204,25 +196,14 @@ def health():
         raise HTTPException(status_code=503, detail="Pipeline not loaded")
     return {"status": "ready", "device": device}
 
-
-@app.get("/generate-owl")
-def generate_owl(time_of_day: str = "afternoon"):
-    print(f"Received owl generation request for {time_of_day}...", flush=True)
-    if not pipeline:
-        error_msg = f"Stable Diffusion pipeline is not loaded. Load error: {pipeline_load_error}"
-        print(f"Error: {error_msg}", flush=True)
-        raise HTTPException(status_code=500, detail=error_msg)
+@app.get("/generate-owl-info")
+def generate_owl_info(time_of_day: str = "afternoon"):
+    """Only generates the procedural traits and LLM embellishment (No SD)."""
     try:
-        # Step 1: Generate procedural base
         traits, fallback_prompt, fallback_story = generate_procedural_owl(time_of_day)
-
-        # Step 2: Embellish with LLM
-        print("Embellishing owl with LLM...", flush=True)
         embellished_prompt, story = embellish_owl_with_llm(traits)
-
-        # Use fallbacks if LLM fails, otherwise MANUALLY ENHANCE the visual prompt
+        
         if embellished_prompt and story:
-            # We add the style and quality keywords ourselves to ensure consistency
             style_name = traits.get('style', 'Detailed 3D Claymation')
             final_prompt = (
                 f"high detail, masterpiece, clean background, vibrant colors. Owl, an owl, {style_name}. {embellished_prompt}, "
@@ -232,6 +213,48 @@ def generate_owl(time_of_day: str = "afternoon"):
         else:
             final_prompt = fallback_prompt
             final_story = fallback_story
+            
+        return {
+            "prompt": final_prompt,
+            "story": final_story
+        }
+    except Exception as e:
+        print(f"Info generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/generate-owl")
+def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str = None):
+    print(f"Received owl generation request for {time_of_day}...", flush=True)
+    if not pipeline:
+        error_msg = f"Stable Diffusion pipeline is not loaded. Load error: {pipeline_load_error}"
+        print(f"Error: {error_msg}", flush=True)
+        raise HTTPException(status_code=500, detail=error_msg)
+    try:
+        # Use provided prompt/story if available (pre-generated), otherwise generate now
+        if prompt and story:
+            print("Using pre-generated owl info.", flush=True)
+            final_prompt = prompt
+            final_story = story
+        else:
+            # Step 1: Generate procedural base
+            traits, fallback_prompt, fallback_story = generate_procedural_owl(time_of_day)
+
+            # Step 2: Embellish with LLM
+            print("Embellishing owl with LLM...", flush=True)
+            embellished_prompt, story = embellish_owl_with_llm(traits)
+
+            # Use fallbacks if LLM fails, otherwise MANUALLY ENHANCE the visual prompt
+            if embellished_prompt and story:
+                # We add the style and quality keywords ourselves to ensure consistency
+                style_name = traits.get('style', 'Detailed 3D Claymation')
+                final_prompt = (
+                    f"high detail, masterpiece, clean background, vibrant colors. Owl, an owl, {style_name}. {embellished_prompt}, "
+                    f"set during the {time_of_day}"
+                )
+                final_story = story
+            else:
+                final_prompt = fallback_prompt
+                final_story = fallback_story
 
         print(f"Final prompt for Diffusion: {final_prompt}", flush=True)
         print(f"Final story for UI: {final_story}", flush=True)
@@ -243,8 +266,8 @@ def generate_owl(time_of_day: str = "afternoon"):
             image = pipeline(
                 prompt=final_prompt,
                 negative_prompt=neg,
-                num_inference_steps=20,
-                guidance_scale=7.5,    
+                num_inference_steps=20,     
+                guidance_scale=7.5,        
                 width=512,             
                 height=512
             ).images[0]
