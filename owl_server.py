@@ -100,7 +100,7 @@ def generate_procedural_owl(time_of_day: str):
     act = random.choice(FALLBACK_OWL_TEMPLATES["actions"])
     
     base_data = {
-        "style": "High quality pixar animation",
+        "style": "Detailed 3d claymation",
         "adjective": adj,
         "accessory": acc,
         "action": act,
@@ -150,7 +150,7 @@ def clean_llm_response(text: str, max_words: int = 20):
         
     return text.replace('"', '').strip()
 
-def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_words: int = 40):
+def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_words: int = 35):
     try:
         # Call 1: The Story
         story_req = (
@@ -212,9 +212,10 @@ def generate_owl(time_of_day: str = "afternoon"):
         # Use fallbacks if LLM fails, otherwise MANUALLY ENHANCE the visual prompt
         if embellished_prompt and story:
             # We add the style and quality keywords ourselves to ensure consistency
+            style_name = traits.get('style', 'Detailed 3D Claymation')
             final_prompt = (
-                f"An owl, {traits['style']}. {embellished_prompt}, "
-                f"set during the {time_of_day}, high detail, masterpiece, clean background, vibrant colors"
+                f"high detail, masterpiece, clean background, vibrant colors. Owl, an owl, {style_name}. {embellished_prompt}, "
+                f"set during the {time_of_day}"
             )
             final_story = story
         else:
@@ -225,14 +226,16 @@ def generate_owl(time_of_day: str = "afternoon"):
         print(f"Final story for UI: {final_story}", flush=True)
 
         # Step 3: Run Tiny-SD 
+        neg = "indistinct, flat, bad anatomy, deformed, blurry, low quality, distorted, extra limbs, bad hands, missing fingers, muddy textures, grainy, text, watermark"
         print("Starting Diffusion inference (this may take a while)...", flush=True)
         with torch.inference_mode():
             image = pipeline(
-                prompt=final_prompt, 
-                num_inference_steps=16,
-                guidance_scale=7,    
-                width=256,             
-                height=256
+                prompt=final_prompt,
+                negative_prompt=neg,
+                num_inference_steps=24,
+                guidance_scale=5,    
+                width=512,             
+                height=512
             ).images[0]
         print("Inference complete!", flush=True)
 
