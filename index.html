@@ -926,6 +926,40 @@
   </div>
 </main>
 
+<!-- Trading Card Modal (End of body for isolation) -->
+<div class="modal-overlay" id="card-modal-overlay" onclick="closeOwlCard()">
+  <div class="trading-card" onclick="event.stopPropagation()">
+    <button class="close-modal" onclick="closeOwlCard()">&times;</button>
+    <div class="card-image-wrap">
+      <img id="modal-owl-img" src="" alt="Owl">
+    </div>
+    <div class="card-content">
+      <div class="card-name" id="modal-owl-name">Owl Name</div>
+      <div class="card-story" id="modal-owl-story">Owl story goes here...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Persistent Debug Info (Visible only in debug mode) -->
+<div id="debug-log" style="
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(0,0,0,0.8);
+  color: #00ff00;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 12px;
+  z-index: 5000;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  border: 1px solid #333;
+">
+  DEBUG LOG READY
+</div>
+
 <script>
 "use strict";
 
@@ -941,10 +975,32 @@ const state = {
   streak: 0,
   clockPerfect: true,
   owls: (() => { try { return JSON.parse(localStorage.getItem('owls_collection')) || []; } catch(e) { return []; } })(),
+  pendingOwl: null, // Pre-fetched LLM data for the current round
+  isDebug: new URLSearchParams(window.location.search).get('debug') === 'true'
 };
 
 // Set initial collection count
 document.getElementById('owl-count').textContent = state.owls.length;
+
+// ------- Background Owl Pre-generation -------
+async function prefetchOwlData() {
+  try {
+    state.pendingOwl = null;
+    let theme = "afternoon";
+    if (document.body.classList.contains("morning")) theme = "morning";
+    else if (document.body.classList.contains("sunset")) theme = "sunset";
+    else if (document.body.classList.contains("night")) theme = "night";
+
+    console.log(`Pre-fetching owl info for ${theme}...`);
+    const response = await fetch(`http://localhost:8081/generate-owl-info?time_of_day=${theme}`);
+    if (response.ok) {
+      state.pendingOwl = await response.json();
+      console.log('Owl info pre-fetched and ready!');
+    }
+  } catch (err) {
+    console.warn('Background pre-fetch failed (will generate on-demand):', err);
+  }
+}
 
 // ------- SVG setup -------
 function buildTicks() {
@@ -1092,11 +1148,17 @@ document.getElementById('btn-debug').addEventListener('click', async () => {
     btn.textContent = 'HATCHING...';
     btn.style.opacity = '0.5';
     
+    const startTime = performance.now();
     const owl = await fetchOwlReward();
+    const duration = ((performance.now() - startTime) / 1000).toFixed(1);
+    
     collectOwl(owl);
     
     // Open drawer to show the result
     openCollectionDrawer();
+    btn.textContent = `DONE (${duration}s)`;
+    document.getElementById('debug-log').textContent = `LAST GEN: ${duration}s`;
+    setTimeout(() => { btn.textContent = originalText; }, 3000);
     
   } catch (err) {
     console.error('Debug hatch failed:', err);
@@ -1193,8 +1255,18 @@ async function fetchOwlReward() {
     else if (document.body.classList.contains("sunset")) theme = "sunset";
     else if (document.body.classList.contains("night")) theme = "night";
 
+    let url = `http://localhost:8081/generate-owl?time_of_day=${theme}`;
+    
+    // Use pre-fetched data if available to skip LLM thinking time
+    if (state.pendingOwl) {
+      console.log('Using pre-fetched owl data to speed up hatching...');
+      const p = encodeURIComponent(state.pendingOwl.prompt);
+      const s = encodeURIComponent(state.pendingOwl.story);
+      url += `&prompt=${p}&story=${s}`;
+    }
+
     console.log(`Requesting AI owl from server for ${theme}...`);
-    const response = await fetch(`http://localhost:8081/generate-owl?time_of_day=${theme}`, {
+    const response = await fetch(url, {
       method: 'GET',
       mode: 'cors',
       cache: 'no-cache',
@@ -1577,8 +1649,10 @@ function renderStep4() {
     `;
     reveal.insertBefore(hatching, next);
     
+    const startTime = performance.now();
     // Asynchronously generate the owl (calls server or SVG generator fallback)
     fetchOwlReward().then(owl => {
+      const duration = ((performance.now() - startTime) / 1000).toFixed(1);
       hatching.remove();
       
       // Re-enable next button
@@ -1606,6 +1680,16 @@ function renderStep4() {
       owlCard.appendChild(img);
       owlCard.appendChild(promptText);
       owlCard.appendChild(successText);
+
+      if (state.isDebug) {
+        document.getElementById('debug-log').textContent = `LAST GEN: ${duration}s`;
+        const debugTime = document.createElement('div');
+        debugTime.style.fontSize = '10px';
+        debugTime.style.color = 'var(--text-muted)';
+        debugTime.style.marginTop = '4px';
+        debugTime.textContent = `Generated in ${duration}s`;
+        owlCard.appendChild(debugTime);
+      }
       
       // next is now fully initialised — safe to use as anchor
       reveal.insertBefore(owlCard, next);
@@ -1792,6 +1876,7 @@ function newClock() {
   state.clockPerfect = true;
   
   applyTheme();
+  prefetchOwlData(); // Start generating owl info in background
   render();
 }
 
@@ -1845,28 +1930,14 @@ buildTicks();
 buildNumerals();
 confettiInit();
 
-// Show debug button if ?debug=true is in the URL
-const params = new URLSearchParams(window.location.search);
-if (params.get('debug') === 'true') {
+// Show debug UI if isDebug is true
+if (state.isDebug) {
   document.getElementById('btn-debug').style.display = 'block';
+  document.getElementById('debug-log').style.display = 'block';
 }
 
 newClock();
 </script>
-
-<!-- Trading Card Modal (End of body for isolation) -->
-<div class="modal-overlay" id="card-modal-overlay" onclick="closeOwlCard()">
-  <div class="trading-card" onclick="event.stopPropagation()">
-    <button class="close-modal" onclick="closeOwlCard()">&times;</button>
-    <div class="card-image-wrap">
-      <img id="modal-owl-img" src="" alt="Owl">
-    </div>
-    <div class="card-content">
-      <div class="card-name" id="modal-owl-name">Owl Name</div>
-      <div class="card-story" id="modal-owl-story">Owl story goes here...</div>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>

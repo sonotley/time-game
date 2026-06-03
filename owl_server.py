@@ -157,7 +157,7 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
         story_req = (
             f"Create a name and a fun back story for this owl, it must be no more then {story_max_words} words: "
             f"{traits['adjective']} owl, {traits['accessory']}, {traits['action']} at {traits['time_of_day']}.\n"
-            f"No intro text. Provide the name first, then the story, separated by a colon ':'. "
+            f"No intro text. You *must* write the name first, then a colon ':', then the story. "
             f"The name *must* start with the letter {random.choice(string.ascii_letters)}"
         )
         print(f"LLM Pass 1 (Story) requesting...", flush=True)
