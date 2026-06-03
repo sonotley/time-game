@@ -4,7 +4,7 @@ import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import torch
-from diffusers import StableDiffusionPipeline, LCMScheduler
+from diffusers import StableDiffusionPipeline, LCMScheduler, AutoencoderKL
 import ollama
 import string
 import time
@@ -39,8 +39,13 @@ pipeline_load_error = None
 try:
     model_id = "Lykon/dreamshaper-8-lcm" 
     
+    # Load TAESD (Microscopic VAE for instant decoding)
+    print("Loading TAESD VAE...", flush=True)
+    taesd = AutoencoderKL.from_pretrained("madebyollin/taesd", torch_dtype=torch_dtype)
+
     pipeline = StableDiffusionPipeline.from_pretrained(
         model_id, 
+        vae=taesd, # Inject the tiny VAE
         torch_dtype=torch_dtype,
         use_safetensors=True
     )
