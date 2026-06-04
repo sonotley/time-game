@@ -24,7 +24,7 @@ app.add_middleware(
 # 1. Device and Budget Memory Selection
 if torch.backends.mps.is_available():
     device = "mps"
-    torch_dtype = torch.float16 # Optimized for M1
+    torch_dtype = torch.float32 # Stable for M1, prevents Metal driver crashes
 elif torch.cuda.is_available():
     device = "cuda"
     torch_dtype = torch.float16
@@ -49,23 +49,16 @@ try:
         vae=taesd,
         torch_dtype=torch_dtype,
         use_safetensors=True,
-        low_cpu_mem_usage=False, # Fixes "Cannot copy out of meta tensor" crash
-        device_map=None          # Ensures manual placement works on MPS
+        low_cpu_mem_usage=False, # Ensures stable loading without meta tensors
+        device_map=None
     )
-
-    
-    # Stability Fix: CLIP Text Encoder on MPS crashes in float16
-    if device == "mps":
-        print("Applying float32 stability fix to Text Encoder...", flush=True)
-        pipeline.text_encoder.to(dtype=torch.float32)
 
     # Use the baked-in LCM Scheduler
     pipeline.scheduler = LCMScheduler.from_config(pipeline.scheduler.config)
 
     # Aggressive memory management for 8GB Mac
     if device in ["cuda", "mps"]:
-        # With float16 (2GB), the model should fit in 8GB RAM without offloading.
-        # Direct .to(device) is MUCH faster than offloading.
+        # Direct .to(device) is fastest. No offloading to avoid transfer overhead.
         pipeline.to(device)
         pipeline.enable_attention_slicing()
     else:
@@ -78,8 +71,8 @@ try:
     if device == "mps":
         print("Warming up model...", flush=True)
         with torch.inference_mode():
-            # Warmup for LCM: 6 steps, 2.0 guidance
-            pipeline(prompt="warmup", num_inference_steps=6, guidance_scale=2.0, width=384, height=384)
+            # Stable Speed: 4 steps, 2.0 guidance
+            pipeline(prompt="warmup", num_inference_steps=4, guidance_scale=2.0, width=384, height=384)
         print("Warmup complete!", flush=True)
 
 except Exception as e:
@@ -281,7 +274,7 @@ def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str 
             image = pipeline(
                 prompt=final_prompt,
                 negative_prompt=neg,
-                num_inference_steps=6,     # Dreamshaper-LCM is ultra-fast
+                num_inference_steps=4,     # Stable Speed: 4 steps in float32 is fast
                 guidance_scale=2.0,        # Guidance scale for LCM should be low (1.0-2.0)
                 width=384,             
                 height=384
