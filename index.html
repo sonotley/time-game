@@ -982,14 +982,20 @@ const state = {
 // Set initial collection count
 document.getElementById('owl-count').textContent = state.owls.length;
 
+// ------- Theme Helpers -------
+function getThemeName() {
+  const body = document.body;
+  if (body.classList.contains("morning")) return "morning";
+  if (body.classList.contains("sunset")) return "sunset";
+  if (body.classList.contains("night")) return "night";
+  return "afternoon";
+}
+
 // ------- Background Owl Pre-generation -------
 async function prefetchOwlData() {
   try {
     state.pendingOwl = null;
-    let theme = "afternoon";
-    if (document.body.classList.contains("morning")) theme = "morning";
-    else if (document.body.classList.contains("sunset")) theme = "sunset";
-    else if (document.body.classList.contains("night")) theme = "night";
+    const theme = getThemeName();
 
     console.log(`Pre-fetching owl info for ${theme}...`);
     const response = await fetch(`http://localhost:8081/generate-owl-info?time_of_day=${theme}`, {
@@ -1187,11 +1193,15 @@ function generateSvgOwl() {
   
   const adjectives = ["Cozy", "Wizard", "Steampunk", "Detective", "Astronaut", "Chef", "Gardener", "Pirate", "Scholar", "Sleepy"];
   const accessories = ["Hat", "Glasses", "Goggles", "Scarf", "Badge", "Bowtie", "Monocle", "Crown"];
-  const name = `A cute vector ${adjectives[Math.floor(Math.random() * adjectives.length)]} owl wearing a ${accessories[Math.floor(Math.random() * accessories.length)]} (Local Fallback)`;
   
-  const hasGlasses = name.includes('Glasses') || name.includes('Goggles');
-  const hasCrown = name.includes('Crown');
-  const hasHat = name.includes('Hat');
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const acc = accessories[Math.floor(Math.random() * accessories.length)];
+  const owlName = `${adj} Owl`;
+  const story = `A cute vector owl wearing a ${acc} (Local Fallback)`;
+  
+  const hasGlasses = acc === 'Glasses' || acc === 'Goggles';
+  const hasCrown = acc === 'Crown';
+  const hasHat = acc === 'Hat';
   
   const svg = `<svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
     <rect width="100%" height="100%" fill="#f8fafc" rx="14"/>
@@ -1243,7 +1253,7 @@ function generateSvgOwl() {
   </svg>`;
   
   return {
-    prompt: name,
+    prompt: `${owlName}: ${story}`,
     image: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
   };
 }
@@ -1253,12 +1263,7 @@ async function fetchOwlReward() {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 300000); // 300s cutoff
-    
-    // Get current time of day from body class
-    let theme = "afternoon";
-    if (document.body.classList.contains("morning")) theme = "morning";
-    else if (document.body.classList.contains("sunset")) theme = "sunset";
-    else if (document.body.classList.contains("night")) theme = "night";
+    const theme = getThemeName();
 
     let url = `http://localhost:8081/generate-owl?time_of_day=${theme}`;
     
@@ -1305,12 +1310,7 @@ async function fetchOwlReward() {
 
 // ------- Theme Management -------
 function applyTheme() {
-  let h24 = state.hour;
-  if (state.hour === 12) {
-    h24 = state.isPM ? 12 : 0;
-  } else {
-    h24 = state.hour + (state.isPM ? 12 : 0);
-  }
+  const h24 = (state.hour % 12) + (state.isPM ? 12 : 0);
 
   const body = document.body;
   const icon = document.getElementById('theme-icon');
@@ -1394,60 +1394,56 @@ function nextStepDelay(nextStepCallback) {
 
 // ------- Phrase Builder UI -------
 function updatePhraseBuilder() {
-  const minuteSlot = document.getElementById('slot-minute');
-  const relationSlot = document.getElementById('slot-relation');
-  const hourSlot = document.getElementById('slot-hour');
+  const mSlot = document.getElementById('slot-minute');
+  const rSlot = document.getElementById('slot-relation');
+  const hSlot = document.getElementById('slot-hour');
+  
+  const isPast = state.minute <= 30;
+  const finalHour = isPast ? state.hour : (state.hour % 12) + 1;
+  
+  mSlot.className = 'word-slot';
+  rSlot.className = 'word-slot';
+  hSlot.className = 'word-slot';
 
-  minuteSlot.className = 'word-slot';
-  relationSlot.className = 'word-slot';
-  hourSlot.className = 'word-slot';
-
-  if (state.step === 1) {
-    minuteSlot.textContent = '?';
-    minuteSlot.classList.add('empty');
-    
-    relationSlot.textContent = 'past/to';
-    relationSlot.classList.add('empty');
-    
-    hourSlot.textContent = '?';
-    hourSlot.classList.add('active');
-  } else if (state.step === 2) {
-    minuteSlot.textContent = '?';
-    minuteSlot.classList.add('empty');
-    
-    relationSlot.textContent = 'past/to';
-    relationSlot.classList.add('active');
-    
-    const lowerHour = state.hour;
-    const upperHour = (state.hour % 12) + 1;
-    hourSlot.textContent = `${HOUR_NAMES[lowerHour]} or ${HOUR_NAMES[upperHour]}`;
-    hourSlot.classList.add('filled');
+  // Minute slot
+  if (state.step <= 2) {
+    mSlot.textContent = '?';
+    mSlot.classList.add('empty');
   } else if (state.step === 3) {
-    minuteSlot.textContent = '?';
-    minuteSlot.classList.add('active');
-    
-    const isPast = state.minute <= 30;
-    relationSlot.textContent = isPast ? 'past' : 'to';
-    relationSlot.classList.add('filled');
-    
-    const finalHour = isPast ? state.hour : (state.hour % 12) + 1;
-    hourSlot.textContent = HOUR_NAMES[finalHour];
-    hourSlot.classList.add('filled');
+    mSlot.textContent = '?';
+    mSlot.classList.add('active');
   } else {
-    const isPast = state.minute <= 30;
     const block = isPast ? state.minute / 5 : (60 - state.minute) / 5;
-    
-    minuteSlot.textContent = BLOCK_WORDS[block];
-    minuteSlot.classList.add('filled');
-    
-    relationSlot.textContent = isPast ? 'past' : 'to';
-    relationSlot.classList.add('filled');
-    
-    const finalHour = isPast ? state.hour : (state.hour % 12) + 1;
-    hourSlot.textContent = HOUR_NAMES[finalHour];
-    hourSlot.classList.add('filled');
-    
-    // Highlight pulse
+    mSlot.textContent = BLOCK_WORDS[block];
+    mSlot.classList.add('filled');
+  }
+
+  // Relation slot
+  if (state.step === 1) {
+    rSlot.textContent = 'past/to';
+    rSlot.classList.add('empty');
+  } else if (state.step === 2) {
+    rSlot.textContent = 'past/to';
+    rSlot.classList.add('active');
+  } else {
+    rSlot.textContent = isPast ? 'past' : 'to';
+    rSlot.classList.add('filled');
+  }
+
+  // Hour slot
+  if (state.step === 1) {
+    hSlot.textContent = '?';
+    hSlot.classList.add('active');
+  } else if (state.step === 2) {
+    const upperHour = (state.hour % 12) + 1;
+    hSlot.textContent = `${HOUR_NAMES[state.hour]} or ${HOUR_NAMES[upperHour]}`;
+    hSlot.classList.add('filled');
+  } else {
+    hSlot.textContent = HOUR_NAMES[finalHour];
+    hSlot.classList.add('filled');
+  }
+
+  if (state.step === 4) {
     const pb = document.getElementById('phrase-builder');
     pb.style.transform = 'scale(1.05)';
     setTimeout(() => pb.style.transform = 'scale(1)', 300);
@@ -1733,18 +1729,23 @@ function renderStep4() {
 // ------- Audio Synthesis (Web Audio API) -------
 let audioCtx = null;
 
+function getAudioContext() {
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
 function playSuccessSound() {
   try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-    const now = audioCtx.currentTime;
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
     const notes = [523.25, 659.25, 783.99, 1046.50];
     notes.forEach((freq, idx) => {
       const time = now + idx * 0.09;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
       
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(freq, time);
@@ -1753,7 +1754,7 @@ function playSuccessSound() {
       gain.gain.linearRampToValueAtTime(0.18, time + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.45);
       
-      osc.connect(gain).connect(audioCtx.destination);
+      osc.connect(gain).connect(ctx.destination);
       osc.start(time);
       osc.stop(time + 0.5);
     });
@@ -1764,13 +1765,10 @@ function playSuccessSound() {
 
 function playFailureSound() {
   try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-    const now = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
     
     osc.type = 'sine';
     osc.frequency.setValueAtTime(200, now);
@@ -1780,7 +1778,7 @@ function playFailureSound() {
     gain.gain.linearRampToValueAtTime(0.15, now + 0.08);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
     
-    osc.connect(gain).connect(audioCtx.destination);
+    osc.connect(gain).connect(ctx.destination);
     osc.start(now);
     osc.stop(now + 0.35);
   } catch (e) {

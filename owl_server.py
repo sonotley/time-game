@@ -1,5 +1,6 @@
 import base64
 from io import BytesIO
+import json
 import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,8 +10,6 @@ from python_coreml_stable_diffusion.pipeline import get_coreml_pipe
 import ollama
 import string
 import time
-
-random.seed(time.time())
 
 app = FastAPI(title="Owl Character Rewards API")
 
@@ -43,7 +42,7 @@ try:
 
     # 2. Wrap it with Apple's Core ML backend using the downloaded local models
     # We point to the specific 'compiled' directory to avoid ambiguity errors
-    print("Wrapping with Core ML backend (models/split_einsum_v2/compiled)...", flush=True)
+    print("Wrapping with Core ML backend (models2/DreamShaper-v8_split-einsum_cn)...", flush=True)
     pipeline = get_coreml_pipe(
         pytorch_pipe=pytorch_pipe,
         mlpackages_dir="./models2/DreamShaper-v8_split-einsum_cn",
@@ -157,49 +156,64 @@ def clean_llm_response(text: str, max_words: int = 20, mode: str = "story"):
     truncated = " ".join(words[:max_words])
     return truncated.replace('"', '').strip() + "..."
 
+def get_ollama_model() -> str:
+    """Finds an installed Ollama model matching preferred candidates, with fallback."""
+    preferred_models = ["gemma2:2b", "llama3.2:1b", "llama3.2:latest", "llama3.2", "gemma:2b"]
+    try:
+        response = ollama.list()
+        available = [m.model for m in getattr(response, "models", [])]
+        for pm in preferred_models:
+            if pm in available:
+                return pm
+            for am in available:
+                if am.startswith(pm) or pm.startswith(am):
+                    return am
+        if available:
+            return available[0]
+    except Exception as e:
+        print(f"Warning: Failed to list Ollama models ({e}). Using default fallback.")
+    return "gemma2:2b"
+
 def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_words: int = 35):
     try:
-        # Call 1: The Story
-        story_req = (
-            f"Create a name and a fun back story for this owl, it must be no more then {story_max_words} words: "
-            f"{traits['adjective']} owl, {traits['accessory']}, {traits['action']} at {traits['time_of_day']}.\n"
-            f"No intro text. You *must* write the name first, then a colon ':', then the story. "
-            f"The name *must* start with the letter {random.choice(string.ascii_letters)}"
+        model = get_ollama_model()
+        prompt = (
+            f"Create a character profile for an owl with these traits:\n"
+            f"- Adjective: {traits['adjective']}\n"
+            f"- Accessory: {traits['accessory']}\n"
+            f"- Action: {traits['action']}\n"
+            f"- Time of day: {traits['time_of_day']}\n\n"
+            f"Respond ONLY with a JSON object containing these exact fields:\n"
+            f"- 'name': A creative name for the owl starting with the letter '{random.choice(string.ascii_uppercase)}'\n"
+            f"- 'story': A fun backstory of at most {story_max_words} words. The story must not contain the name of the owl.\n"
+            f"- 'visual_prompt': A detailed visual description of at most {prompt_max_words} words, suitable for Stable Diffusion, focusing on physical details, shapes, colors, positioning, and 3D claymation style. Do not mention the name in the prompt.\n"
         )
-        print(f"LLM Pass 1 (Story) requesting...", flush=True)
-        print(story_req)
-        story_res = ollama.generate(
-            model="llama3.2:1b", 
-            prompt=story_req,
+        
+        print(f"LLM single-pass request to model '{model}'...", flush=True)
+        res = ollama.generate(
+            model=model, 
+            prompt=prompt,
+            format="json",
             stream=False, 
             keep_alive=0,
             options={
-                "temperature": 0.9,  # Increases creativity/randomness
-                "seed": random.randint(0, 999999) # Forces a new probability tree
+                "temperature": 0.85,
+                "seed": random.randint(0, 999999)
             }
         )
-        story = clean_llm_response(story_res['response'], max_words=story_max_words, mode="story")
-
-        # Call 2: The Visuals
-        visual_req = (
-            f"Describe the appearance of this owl in a prompt suitable for stable diffusion "
-            f"{traits['adjective']} owl, {traits['accessory']}, {traits['action']} at {traits['time_of_day']}.\n"
-            f"Focus on visual details only. No intro text."
-            f"Explicitly describe the basic physical details of the scene, what is in it, what colour, what size, what shape, how are the things positioned, etc."
-            f"Here is some more detail about the owl: {story}."
-            f"Do not use more than {prompt_max_words} words"
-        )
-        print(f"LLM Pass 2 (Visuals) requesting...", flush=True)
-        print(visual_req)
-        visual_res = ollama.generate(model="llama3.2:1b", prompt=visual_req, stream=False, keep_alive=0)
-        embellished_prompt = clean_llm_response(visual_res['response'], max_words=prompt_max_words, mode="prompt")
         
-        # Validation: check if we got meaningful text back
-        if len(embellished_prompt) < 10 or len(story) < 5:
-            print(f"LLM Validation failed. Story: '{story}', Prompt: '{embellished_prompt}'", flush=True)
+        data = json.loads(res['response'].strip())
+        name = data.get('name', 'Mysterious Owl').strip()
+        story_content = data.get('story', '').strip()
+        visual_prompt = data.get('visual_prompt', '').strip()
+        
+        combined_story = f"{name}: {story_content}" if story_content else name
+        
+        if len(visual_prompt) < 10 or len(combined_story) < 5:
+            print(f"LLM Validation failed. Story: '{combined_story}', Prompt: '{visual_prompt}'", flush=True)
             return None, None
             
-        return embellished_prompt, story
+        return visual_prompt, combined_story
         
     except Exception as e:
         print(f"Ollama embellishment failed: {e}", flush=True)
@@ -209,7 +223,7 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
 def health():
     if pipeline is None:
         raise HTTPException(status_code=503, detail="Pipeline not loaded")
-    return {"status": "ready", "device": device}
+    return {"status": "ready", "device": "Core ML"}
 
 @app.get("/generate-owl-info")
 def generate_owl_info(time_of_day: str = "afternoon"):
