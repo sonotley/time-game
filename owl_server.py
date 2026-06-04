@@ -21,6 +21,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+ART_STYLE = "Fantasy art"
+
 # 1. Core ML Pipeline Setup
 print("Loading Core ML Pipeline to Apple Neural Engine (ANE)...", flush=True)
 
@@ -89,7 +91,7 @@ def generate_procedural_owl(time_of_day: str):
     act = random.choice(FALLBACK_OWL_TEMPLATES["actions"])
     
     base_data = {
-        "style": "Detailed 3d claymation",
+        "style": ART_STYLE,
         "adjective": adj,
         "accessory": acc,
         "action": act,
@@ -158,7 +160,7 @@ def clean_llm_response(text: str, max_words: int = 20, mode: str = "story"):
 
 def get_ollama_model() -> str:
     """Finds an installed Ollama model matching preferred candidates, with fallback."""
-    preferred_models = ["gemma2:2b", "llama3.2:1b", "llama3.2:latest", "llama3.2", "gemma:2b"]
+    preferred_models = ["llama3.2:1b"]
     try:
         response = ollama.list()
         available = [m.model for m in getattr(response, "models", [])]
@@ -172,7 +174,7 @@ def get_ollama_model() -> str:
             return available[0]
     except Exception as e:
         print(f"Warning: Failed to list Ollama models ({e}). Using default fallback.")
-    return "gemma2:2b"
+    return "llama3.2:1b"
 
 def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_words: int = 35):
     try:
@@ -185,8 +187,8 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
             f"- Time of day: {traits['time_of_day']}\n\n"
             f"Respond ONLY with a JSON object containing these exact fields:\n"
             f"- 'name': A creative name for the owl starting with the letter '{random.choice(string.ascii_uppercase)}'\n"
-            f"- 'story': A fun backstory of at most {story_max_words} words. The story must not contain the name of the owl.\n"
-            f"- 'visual_prompt': A detailed visual description of at most {prompt_max_words} words, suitable for Stable Diffusion, focusing on physical details, shapes, colors, positioning, and 3D claymation style. Do not mention the name in the prompt.\n"
+            f"- 'story': A fun backstory of at most {story_max_words} words. At least {story_max_words-10} words. \n"
+            f"- 'visual_prompt': A detailed visual description of approximately {prompt_max_words} words, suitable for Stable Diffusion, focusing on physical details, shapes, colors, positioning, and style. Do not mention the name in the prompt.\n"
         )
         
         print(f"LLM single-pass request to model '{model}'...", flush=True)
@@ -236,7 +238,7 @@ def generate_owl_info(time_of_day: str = "afternoon"):
             style_name = traits.get('style', 'Detailed 3D Claymation')
             final_prompt = (
                 # f"high detail, masterpiece, clean background, vibrant colors. "
-                f"Owl, an owl, "
+                f"An owl character on a trading card, "
                 f"{style_name}. {embellished_prompt}, "
                 f"set during the {time_of_day}"
             )
@@ -292,7 +294,7 @@ def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str 
 
         # Step 3: Run Core ML Stable Diffusion
         print("Starting Core ML inference...", flush=True)
-        neg = "oversaturated, deformed, bad anatomy, bad proportions, blurry, low quality, worst quality, artifacts, noise, text, watermark, mutated, extra limbs, fused fingers"
+        neg = "borders, text, scary, obscene, boring, nsfw, not an owl, human, oversaturated, deformed, bad anatomy, bad proportions, blurry, low quality, worst quality, artifacts, noise, text, watermark, mutated, extra limbs, fused fingers"
         # Inference resolution is locked to model bundle (512x512)
         image = pipeline(
             prompt=final_prompt,

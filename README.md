@@ -24,7 +24,7 @@ Completing a round without any mistakes hatches a unique AI-generated owl charac
 Download from [ollama.com](https://ollama.com), open the app so the menu-bar icon appears, then pull the model:
 
 ```bash
-ollama pull gemma2:2b
+ollama pull llama3.2:1b
 ```
 
 ### 2. Python generation server (image generation)
@@ -36,7 +36,7 @@ pip install -r requirements.txt
 python3 owl_server.py
 ```
 
-The server starts on **http://127.0.0.1:8081**. It takes ~20–30 seconds to load Stable Diffusion Turbo the first time. You can check it is ready at:
+The server starts on **http://127.0.0.1:8081**. It takes ~20–30 seconds to load Stable Diffusion v1.5 the first time. You can check it is ready at:
 
 ```
 http://127.0.0.1:8081/health
@@ -66,5 +66,5 @@ A developing phrase builder (`? • past/to • ?`) fills in as each step is ans
 | File | Description |
 |------|-------------|
 | `index.html` | Complete self-contained game (HTML + CSS + JS) |
-| `owl_server.py` | FastAPI server — generates owl images via SD-Turbo + Ollama |
+| `owl_server.py` | FastAPI server — generates owl images via Stable Diffusion v1.5 + Ollama |
 | `requirements.txt` | Python dependencies for the owl server |
