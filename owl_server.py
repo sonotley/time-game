@@ -4,7 +4,8 @@ import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import torch
-from diffusers import StableDiffusionPipeline, LCMScheduler, AutoencoderTiny
+from diffusers import StableDiffusionPipeline
+from python_coreml_stable_diffusion.pipeline import get_coreml_pipe
 import ollama
 import string
 import time
@@ -12,8 +13,6 @@ import time
 random.seed(time.time())
 
 app = FastAPI(title="Owl Character Rewards API")
-
-image_size = 512
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,62 +22,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 1. Device and Budget Memory Selection
-if torch.backends.mps.is_available():
-    device = "mps"
-    torch_dtype = torch.float32 # Stable for M1, prevents Metal driver crashes
-elif torch.cuda.is_available():
-    device = "cuda"
-    torch_dtype = torch.float16
-else:
-    device = "cpu"
-    torch_dtype = torch.float32
+# 1. Core ML Pipeline Setup
+print("Loading Core ML Pipeline to Apple Neural Engine (ANE)...", flush=True)
 
-print(f"Loading Stable Diffusion onto device: {device.upper()}...", flush=True)
-
-# 2. Load Dreamshaper-8-LCM (High quality + 4-step generation)
 pipeline_load_error = None
 try:
-    model_id = "Lykon/dreamshaper-8-lcm" 
-
-    # Load TAESD (Microscopic VAE for instant decoding)
-    # Using AutoencoderTiny specifically for the TAESD architecture
-    print("Loading TAESD VAE...", flush=True)
-    taesd = AutoencoderTiny.from_pretrained("madebyollin/taesd", torch_dtype=torch_dtype)
-
-    pipeline = StableDiffusionPipeline.from_pretrained(
-        model_id, 
-        vae=taesd,
-        torch_dtype=torch_dtype,
-        use_safetensors=True,
-        low_cpu_mem_usage=False, # Ensures stable loading without meta tensors
-        device_map=None
+    # 1. Load the base PyTorch configuration (required for tokenizer/scheduler logic)
+    print("Loading base PyTorch configuration...", flush=True)
+    pytorch_pipe = StableDiffusionPipeline.from_pretrained(
+        "runwayml/stable-diffusion-v1-5", 
+        use_safetensors=True
     )
+    pytorch_pipe.safety_checker = None
 
-    # Use the baked-in LCM Scheduler
-    pipeline.scheduler = LCMScheduler.from_config(pipeline.scheduler.config)
-
-    # Aggressive memory management for 8GB Mac
-    if device in ["cuda", "mps"]:
-        # Re-enabling offloading to prevent system-level swapping on 8GB machines
-        pipeline.enable_model_cpu_offload()
-        pipeline.enable_attention_slicing()
-    else:
-        pipeline.to("cpu")
-        
-    print(f"Dreamshaper-8-LCM loaded successfully on {device.upper()}!", flush=True)
-    pipeline.safety_checker = None
-
-    # Step 2.5: Model Warmup (Pre-loads weights into GPU memory)
-    if device == "mps":
-        print("Warming up model...", flush=True)
-        with torch.inference_mode():
-            # Stable Speed: 4 steps, 2.0 guidance
-            pipeline(prompt="warmup", num_inference_steps=1, guidance_scale=2.0, width=image_size, height=image_size)
-        print("Warmup complete!", flush=True)
+    # 2. Wrap it with Apple's Core ML backend using the downloaded local models
+    # We point to the specific 'compiled' directory to avoid ambiguity errors
+    print("Wrapping with Core ML backend (models/split_einsum_v2/compiled)...", flush=True)
+    pipeline = get_coreml_pipe(
+        pytorch_pipe=pytorch_pipe,
+        mlpackages_dir="./models/split_einsum_v2/compiled",
+        model_version="runwayml/stable-diffusion-v1-5",
+        compute_unit="ALL" # Targets CPU + GPU + Neural Engine simultaneously
+    )
+    
+    print("Core ML Pipeline successfully loaded!", flush=True)
 
 except Exception as e:
-    print(f"Error loading pipeline: {e}", flush=True)
+    print(f"Error loading Core ML pipeline: {e}", flush=True)
     pipeline = None
     pipeline_load_error = str(e)
 
@@ -133,24 +103,24 @@ def generate_procedural_owl(time_of_day: str):
 
 def clean_llm_response(text: str, max_words: int = 20, mode: str = "story"):
     """
-    Truncate at first line break and word limit.
-    In 'story' mode, it finds the punctuation closest to the limit.
+    Cleans LLM response, joining lines and intelligently truncating at word limits.
+    In 'story' mode, it prefers ending at a full sentence boundary.
     """
     if not text: return ""
 
-    # 1. Remove common conversational intros
+    # 1. Join all non-empty lines with a space to prevent loss of multi-line stories
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    text = " ".join(lines)
+
+    # 2. Remove common conversational intros (e.g., "Sure! Here's your owl:")
     fillers = ["Sure!", "Here is", "I'd be happy", "Certainly", "Ok, here", "Prompt:"]
     for filler in fillers:
         if text.lower().startswith(filler.lower()):
-            parts = text.split(":", 1)
-            if len(parts) > 1:
-                text = parts[1]
+            # Try to find a colon or a clean break after the filler
+            first_colon = text.find(":")
+            if 0 < first_colon < 100: # Found a colon that likely separates intro from content
+                text = text[first_colon+1:].strip()
             break
-
-    # 2. Take only the first non-empty line
-    lines = [line.strip() for line in text.split('\n') if line.strip()]
-    if not lines: return ""
-    text = lines[0]
 
     # 3. Check if it even exceeds the word count
     words = text.split()
@@ -172,11 +142,12 @@ def clean_llm_response(text: str, max_words: int = 20, mode: str = "story"):
             # Find the ending closest to our word limit
             # (We prefer slightly under, but will take slightly over if it's closer)
             best_idx, _ = min(endings, key=lambda x: abs(x[1] - max_words))
-            # Don't go way too far over (e.g. if limit is 20 and closest is 40)
-            if len(text[:best_idx+1].split()) <= max_words + 5:
+            
+            # Sanity check: don't pick an ending that is too far beyond the limit
+            if len(text[:best_idx+1].split()) <= max_words + 10:
                 return text[:best_idx+1].replace('"', '').strip()
 
-    # Fallback for prompt mode or if no close sentence end was found: hard truncate
+    # Fallback for prompt mode or if no suitable sentence end was found
     truncated = " ".join(words[:max_words])
     return truncated.replace('"', '').strip() + "..."
 
@@ -195,7 +166,7 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
             model="llama3.2:1b", 
             prompt=story_req, 
             stream=False, 
-            # keep_alive=0,
+            keep_alive=0,
             options={
                 "temperature": 0.9,  # Increases creativity/randomness
                 "seed": random.randint(0, 999999) # Forces a new probability tree
@@ -299,19 +270,17 @@ def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str 
         print(f"Final prompt for Diffusion: {final_prompt}", flush=True)
         print(f"Final story for UI: {final_story}", flush=True)
 
-        # Step 3: Run Dreamshaper-8-LCM
-        neg = "indistinct, flat, bad anatomy, deformed, blurry, low quality, distorted, extra limbs, bad hands, missing fingers, muddy textures, grainy, text, watermark"
-        print("Starting Diffusion inference (this may take a while)...", flush=True)
-        with torch.inference_mode():
-            image = pipeline(
-                prompt=final_prompt,
-                negative_prompt=neg,
-                num_inference_steps=4,     # Stable Speed: 4 steps in float32 is fast
-                guidance_scale=2.0,        # Guidance scale for LCM should be low (1.0-2.0)
-                width=image_size,             
-                height=image_size
-            ).images[0]
-        print("Inference complete!", flush=True)
+        # Step 3: Run Core ML Stable Diffusion
+        print("Starting Core ML inference...", flush=True)
+        # Inference resolution is locked to model bundle (512x512)
+        image = pipeline(
+            prompt=final_prompt,
+            height=pipeline.height, 
+            width=pipeline.width,
+            num_inference_steps=20, # Standard steps for Core ML v1.5
+            guidance_scale=7.5
+        ).images[0]
+        print("Core ML Inference complete!", flush=True)
 
         # Step 4: Base64 Encode output
         buffered = BytesIO()

@@ -1,10 +1,17 @@
+# Core Dependencies
 torch
 torchvision
 diffusers
 transformers
+accelerate
+huggingface_hub
+
+# Apple Core ML (Requires Python 3.10, 3.11, or 3.12)
+python-coreml-stable-diffusion @ git+https://github.com/apple/ml-stable-diffusion.git
+
+# Server & API
 fastapi
 uvicorn[standard]
 requests
 pillow
-accelerate
 ollama
