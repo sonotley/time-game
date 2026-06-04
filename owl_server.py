@@ -13,6 +13,8 @@ random.seed(time.time())
 
 app = FastAPI(title="Owl Character Rewards API")
 
+image_size = 512
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -72,7 +74,7 @@ try:
         print("Warming up model...", flush=True)
         with torch.inference_mode():
             # Stable Speed: 4 steps, 2.0 guidance
-            pipeline(prompt="warmup", num_inference_steps=4, guidance_scale=2.0, width=384, height=384)
+            pipeline(prompt="warmup", num_inference_steps=1, guidance_scale=2.0, width=image_size, height=image_size)
         print("Warmup complete!", flush=True)
 
 except Exception as e:
@@ -129,26 +131,48 @@ def generate_procedural_owl(time_of_day: str):
     
     return base_data, fallback_prompt, fallback_story
 
-def clean_llm_response(text: str, max_words: int = 20):
-    """Truncate at first line break, first sentence, or word limit."""
+def clean_llm_response(text: str, max_words: int = 20, mode: str = "story"):
+    """
+    Truncate at first line break and word limit.
+    In 'story' mode, it attempts to end on a full sentence.
+    """
     if not text: return ""
 
     # Remove common conversational intros
     fillers = ["Sure!", "Here is", "I'd be happy", "Certainly", "Ok, here", "Prompt:"]
     for filler in fillers:
         if text.lower().startswith(filler.lower()):
-            # Find the actual content after the filler
             parts = text.split(":", 1)
             if len(parts) > 1:
                 text = parts[1]
             break
 
-    # Final word count limit
+    # Take only the first non-empty line
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    if not lines: return ""
+    text = lines[0]
+
     words = text.split()
-    if len(words) > max_words:
-        text = " ".join(words[:max_words]) + "..."
+    if len(words) <= max_words:
+        return text.replace('"', '').strip()
+
+    # If over limit, truncate to max_words first
+    truncated_text = " ".join(words[:max_words])
+
+    if mode == "story":
+        # Find the last sentence-ending punctuation in the truncated block
+        last_punctuation = -1
+        for char in [".", "!", "?"]:
+            pos = truncated_text.rfind(char)
+            if pos > last_punctuation:
+                last_punctuation = pos
         
-    return text.replace('"', '').strip()
+        # If we found punctuation that isn't at the very start (e.g., "Mr. Owl")
+        if last_punctuation > 15:
+            return truncated_text[:last_punctuation + 1].replace('"', '').strip()
+
+    # Fallback for prompt mode or if no sentence end was found: standard ellipsis
+    return truncated_text.replace('"', '').strip() + "..."
 
 def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_words: int = 35):
     try:
@@ -171,7 +195,7 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
                 "seed": random.randint(0, 999999) # Forces a new probability tree
             }
         )
-        story = clean_llm_response(story_res['response'], max_words=story_max_words)
+        story = clean_llm_response(story_res['response'], max_words=story_max_words, mode="story")
 
         # Call 2: The Visuals
         visual_req = (
@@ -185,7 +209,7 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
         print(f"LLM Pass 2 (Visuals) requesting...", flush=True)
         print(visual_req)
         visual_res = ollama.generate(model="llama3.2:1b", prompt=visual_req, stream=False, keep_alive=0)
-        embellished_prompt = clean_llm_response(visual_res['response'], max_words=prompt_max_words)
+        embellished_prompt = clean_llm_response(visual_res['response'], max_words=prompt_max_words, mode="prompt")
         
         # Validation: check if we got meaningful text back
         if len(embellished_prompt) < 10 or len(story) < 5:
@@ -276,8 +300,8 @@ def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str 
                 negative_prompt=neg,
                 num_inference_steps=4,     # Stable Speed: 4 steps in float32 is fast
                 guidance_scale=2.0,        # Guidance scale for LCM should be low (1.0-2.0)
-                width=384,             
-                height=384
+                width=image_size,             
+                height=image_size
             ).images[0]
         print("Inference complete!", flush=True)
 
