@@ -1055,13 +1055,18 @@ function collectOwl(owl) {
   if (state.owls.length > MAX_OWLS) {
     state.owls = state.owls.slice(-MAX_OWLS);
   }
-  try {
-    localStorage.setItem('owls_collection', JSON.stringify(state.owls));
-  } catch (e) {
-    console.warn('localStorage full \u2014 oldest owl dropped.');
-    state.owls = state.owls.slice(1);
-    try { localStorage.setItem('owls_collection', JSON.stringify(state.owls)); } catch(_) {}
+  
+  // Try saving, dropping oldest items iteratively if quota is exceeded
+  while (state.owls.length > 0) {
+    try {
+      localStorage.setItem('owls_collection', JSON.stringify(state.owls));
+      break; // Successfully saved
+    } catch (e) {
+      console.warn('localStorage full \u2014 dropping oldest owl to free up space.');
+      state.owls.shift(); // Drop the oldest owl
+    }
   }
+  
   document.getElementById('owl-count').textContent = state.owls.length;
 }
 

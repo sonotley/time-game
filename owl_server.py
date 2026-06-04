@@ -308,14 +308,14 @@ def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str 
 
         # Step 4: Base64 Encode output
         buffered = BytesIO()
-        image.save(buffered, format="PNG")
+        image.save(buffered, format="JPEG", quality=80)
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
         print("Returning generated owl.", flush=True)
         return {
             "prompt": final_prompt,
             "story": final_story,
-            "image": f"data:image/png;base64,{img_str}"
+            "image": f"data:image/jpeg;base64,{img_str}"
         }
 
     except Exception as e:

@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stable Diffusion Prompt Tester</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e1b4b 100%);
+      --panel-bg: rgba(30, 41, 59, 0.7);
+      --panel-border: rgba(99, 102, 241, 0.2);
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-glow: rgba(99, 102, 241, 0.35);
+      --text-primary: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-y: auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+      max-width: 600px;
+    }
+
+    h1 {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 36px;
+      font-weight: 700;
+      background: linear-gradient(to right, #818cf8, #c084fc, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      max-width: 1000px;
+      width: 100%;
+    }
+
+    @media (max-width: 800px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 24px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 20px rgba(99, 102, 241, 0.05);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 14px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 16px;
+      resize: none;
+      transition: all 0.3s ease;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .preset-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .preset-btn {
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 8px;
+      color: #a5b4fc;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .preset-btn:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--accent);
+    }
+
+    button.generate-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      padding: 16px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 14px var(--accent-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button.generate-btn:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px var(--accent-glow);
+    }
+
+    button.generate-btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    button.generate-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .preview-container {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 300px;
+      position: relative;
+    }
+
+    .image-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .image-placeholder svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      opacity: 0.4;
+    }
+
+    .result-image {
+      max-width: 100%;
+      max-height: 380px;
+      border-radius: 16px;
+      border: 2px solid var(--panel-border);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+      display: none;
+    }
+
+    /* Loading Spinner */
+    .spinner-wrap {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(99, 102, 241, 0.1);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .timer {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    /* History Gallery */
+    .gallery-section {
+      max-width: 1000px;
+      width: 100%;
+      margin-top: 40px;
+      border-top: 1px solid var(--panel-border);
+      padding-top: 30px;
+    }
+
+    .gallery-title {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 22px;
+      margin-bottom: 20px;
+      color: var(--text-primary);
+    }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 20px;
+    }
+
+    .gallery-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .gallery-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--accent);
+    }
+
+    .gallery-card img {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 10px;
+      object-fit: cover;
+      margin-bottom: 8px;
+    }
+
+    .gallery-card span {
+      font-size: 12px;
+      color: var(--text-primary);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.4;
+    }
+
+    .download-btn {
+      margin-top: 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--panel-border);
+      color: var(--text-primary);
+      border-radius: 10px;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .download-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--accent);
+    }
+
+    .status-log {
+      color: #ef4444;
+      font-size: 14px;
+      text-align: center;
+      margin-top: 12px;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Stable Diffusion Prompt Tester</h1>
+    <p class="subtitle">Enter any descriptive prompt below to send it directly to your running local Core ML Stable Diffusion v1.5 pipeline.</p>
+  </header>
+
+  <main>
+    <!-- Left Panel: Input -->
+    <div class="card">
+      <div class="form-group">
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" placeholder="A detailed 3D claymation of a wizard owl wearing a tiny top hat..."></textarea>
+        
+        <div class="preset-container">
+          <button class="preset-btn" onclick="applyPreset('A cozy wizard owl reading a tiny magical spellbook, detailed 3D claymation')">Wizard Owl</button>
+          <button class="preset-btn" onclick="applyPreset('A detective owl wearing brass goggles holding a magnifying glass, steampunk style')">Detective Owl</button>
+          <button class="preset-btn" onclick="applyPreset('A sleepy astronaut owl floating in deep space, hyper-detailed 3d model')">Astronaut Owl</button>
+        </div>
+      </div>
+      
+      <button class="generate-btn" id="btn-generate" onclick="generateImage()">
+        <span>Generate Image</span>
+      </button>
+      
+      <div class="status-log" id="status-message"></div>
+    </div>
+
+    <!-- Right Panel: Preview -->
+    <div class="card">
+      <label>Result Preview</label>
+      <div class="preview-container">
+        
+        <!-- Loading Spinner -->
+        <div class="spinner-wrap" id="loading-spinner">
+          <div class="spinner"></div>
+          <div class="timer" id="loading-timer">0.0s</div>
+        </div>
+
+        <!-- Initial Placeholder -->
+        <div class="image-placeholder" id="placeholder-graphic">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 00-2 2z"></path>
+          </svg>
+          <p>Ready for prompt entry</p>
+        </div>
+
+        <!-- Generated Image -->
+        <img class="result-image" id="result-img" alt="Stable Diffusion Output">
+        
+        <!-- Download Button -->
+        <button class="download-btn" id="btn-download" onclick="downloadImage()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+          </svg>
+          Download Image
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Panel: Gallery History -->
+  <section class="gallery-section">
+    <h2 class="gallery-title">Session History</h2>
+    <div class="gallery-grid" id="gallery-grid">
+      <!-- Session images loaded here -->
+    </div>
+  </section>
+
+  <script>
+    const history = [];
+
+    function applyPreset(text) {
+      document.getElementById('prompt').value = text;
+    }
+
+    async function generateImage() {
+      const promptEl = document.getElementById('prompt');
+      const promptText = promptEl.value.trim();
+      const statusEl = document.getElementById('status-message');
+      const spinner = document.getElementById('loading-spinner');
+      const timerEl = document.getElementById('loading-timer');
+      const placeholder = document.getElementById('placeholder-graphic');
+      const resultImg = document.getElementById('result-img');
+      const downloadBtn = document.getElementById('btn-download');
+      const generateBtn = document.getElementById('btn-generate');
+
+      if (!promptText) {
+        statusEl.textContent = "Please enter a prompt first.";
+        return;
+      }
+
+      // Reset state
+      statusEl.textContent = "";
+      placeholder.style.display = "none";
+      resultImg.style.display = "none";
+      downloadBtn.style.display = "none";
+      spinner.style.display = "flex";
+      generateBtn.disabled = true;
+
+      let elapsed = 0.0;
+      timerEl.textContent = "0.0s";
+      const timerInterval = setInterval(() => {
+        elapsed += 0.1;
+        timerEl.textContent = elapsed.toFixed(1) + "s";
+      }, 100);
+
+      try {
+        const url = `http://localhost:8081/generate-owl?prompt=${encodeURIComponent(promptText)}&story=test`;
+        const response = await fetch(url, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-cache'
+        });
+
+        clearInterval(timerInterval);
+
+        if (!response.ok) {
+          throw new Error(`Server returned error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.image) {
+          resultImg.src = data.image;
+          resultImg.style.display = "block";
+          downloadBtn.style.display = "flex";
+          
+          // Add to session history
+          addToHistory(promptText, data.image);
+        } else {
+          throw new Error("No image data found in response.");
+        }
+      } catch (err) {
+        clearInterval(timerInterval);
+        console.error(err);
+        statusEl.textContent = `Error: ${err.message || 'Generation failed'}. Make sure your local owl_server.py is running on port 8081.`;
+        placeholder.style.display = "flex";
+      } finally {
+        spinner.style.display = "none";
+        generateBtn.disabled = false;
+      }
+    }
+
+    function addToHistory(promptText, imageSrc) {
+      const galleryGrid = document.getElementById('gallery-grid');
+      
+      const item = { prompt: promptText, image: imageSrc };
+      history.push(item);
+
+      const card = document.createElement('div');
+      card.className = 'gallery-card';
+      card.onclick = () => {
+        document.getElementById('prompt').value = promptText;
+        const resultImg = document.getElementById('result-img');
+        const placeholder = document.getElementById('placeholder-graphic');
+        const downloadBtn = document.getElementById('btn-download');
+        
+        placeholder.style.display = "none";
+        resultImg.src = imageSrc;
+        resultImg.style.display = "block";
+        downloadBtn.style.display = "flex";
+      };
+
+      const img = document.createElement('img');
+      img.src = imageSrc;
+      
+      const span = document.createElement('span');
+      span.textContent = promptText;
+      span.title = promptText;
+
+      card.appendChild(img);
+      card.appendChild(span);
+      
+      // Insert newest at the front
+      galleryGrid.insertBefore(card, galleryGrid.firstChild);
+    }
+
+    function downloadImage() {
+      const img = document.getElementById('result-img');
+      if (!img.src) return;
+
+      const link = document.createElement('a');
+      link.href = img.src;
+      link.download = `sd_generate_${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
