@@ -134,11 +134,11 @@ def generate_procedural_owl(time_of_day: str):
 def clean_llm_response(text: str, max_words: int = 20, mode: str = "story"):
     """
     Truncate at first line break and word limit.
-    In 'story' mode, it attempts to end on a full sentence.
+    In 'story' mode, it finds the punctuation closest to the limit.
     """
     if not text: return ""
 
-    # Remove common conversational intros
+    # 1. Remove common conversational intros
     fillers = ["Sure!", "Here is", "I'd be happy", "Certainly", "Ok, here", "Prompt:"]
     for filler in fillers:
         if text.lower().startswith(filler.lower()):
@@ -147,32 +147,38 @@ def clean_llm_response(text: str, max_words: int = 20, mode: str = "story"):
                 text = parts[1]
             break
 
-    # Take only the first non-empty line
+    # 2. Take only the first non-empty line
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     if not lines: return ""
     text = lines[0]
 
+    # 3. Check if it even exceeds the word count
     words = text.split()
     if len(words) <= max_words:
         return text.replace('"', '').strip()
 
-    # If over limit, truncate to max_words first
-    truncated_text = " ".join(words[:max_words])
-
+    # 4. Handle Truncation
     if mode == "story":
-        # Find the last sentence-ending punctuation in the truncated block
-        last_punctuation = -1
-        for char in [".", "!", "?"]:
-            pos = truncated_text.rfind(char)
-            if pos > last_punctuation:
-                last_punctuation = pos
+        # Find all punctuation marks that look like sentence ends
+        endings = []
+        for i, char in enumerate(text):
+            if char in [".", "!", "?"]:
+                # Check if it's a real end (followed by space or end of string)
+                if i + 1 == len(text) or text[i+1].isspace():
+                    word_count = len(text[:i+1].split())
+                    endings.append((i, word_count))
         
-        # If we found punctuation that isn't at the very start (e.g., "Mr. Owl")
-        if last_punctuation > 15:
-            return truncated_text[:last_punctuation + 1].replace('"', '').strip()
+        if endings:
+            # Find the ending closest to our word limit
+            # (We prefer slightly under, but will take slightly over if it's closer)
+            best_idx, _ = min(endings, key=lambda x: abs(x[1] - max_words))
+            # Don't go way too far over (e.g. if limit is 20 and closest is 40)
+            if len(text[:best_idx+1].split()) <= max_words + 5:
+                return text[:best_idx+1].replace('"', '').strip()
 
-    # Fallback for prompt mode or if no sentence end was found: standard ellipsis
-    return truncated_text.replace('"', '').strip() + "..."
+    # Fallback for prompt mode or if no close sentence end was found: hard truncate
+    truncated = " ".join(words[:max_words])
+    return truncated.replace('"', '').strip() + "..."
 
 def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_words: int = 35):
     try:
@@ -238,7 +244,9 @@ def generate_owl_info(time_of_day: str = "afternoon"):
         if embellished_prompt and story:
             style_name = traits.get('style', 'Detailed 3D Claymation')
             final_prompt = (
-                f"high detail, masterpiece, clean background, vibrant colors. Owl, an owl, {style_name}. {embellished_prompt}, "
+                # f"high detail, masterpiece, clean background, vibrant colors. "
+                f"Owl, an owl, "
+                f"{style_name}. {embellished_prompt}, "
                 f"set during the {time_of_day}"
             )
             final_story = story
