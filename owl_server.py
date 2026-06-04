@@ -58,8 +58,8 @@ try:
 
     # Aggressive memory management for 8GB Mac
     if device in ["cuda", "mps"]:
-        # Direct .to(device) is fastest. No offloading to avoid transfer overhead.
-        pipeline.to(device)
+        # Re-enabling offloading to prevent system-level swapping on 8GB machines
+        pipeline.enable_model_cpu_offload()
         pipeline.enable_attention_slicing()
     else:
         pipeline.to("cpu")
