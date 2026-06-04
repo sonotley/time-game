@@ -4,7 +4,7 @@ import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import torch
-from diffusers import StableDiffusionPipeline
+from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler 
 from python_coreml_stable_diffusion.pipeline import get_coreml_pipe
 import ollama
 import string
@@ -35,12 +35,18 @@ try:
     )
     pytorch_pipe.safety_checker = None
 
+    print("Swapping scheduler to DPM++ 2M Karras...", flush=True)
+    pytorch_pipe.scheduler = DPMSolverMultistepScheduler.from_config(
+        pytorch_pipe.scheduler.config, 
+        use_karras_sigmas=True
+    )
+
     # 2. Wrap it with Apple's Core ML backend using the downloaded local models
     # We point to the specific 'compiled' directory to avoid ambiguity errors
     print("Wrapping with Core ML backend (models/split_einsum_v2/compiled)...", flush=True)
     pipeline = get_coreml_pipe(
         pytorch_pipe=pytorch_pipe,
-        mlpackages_dir="./models/split_einsum_v2/compiled",
+        mlpackages_dir="./models2/DreamShaper-v8_split-einsum_cn",
         model_version="runwayml/stable-diffusion-v1-5",
         compute_unit="ALL" # Targets CPU + GPU + Neural Engine simultaneously
     )
@@ -164,7 +170,7 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
         print(story_req)
         story_res = ollama.generate(
             model="llama3.2:1b", 
-            prompt=story_req, 
+            prompt=story_req,
             stream=False, 
             keep_alive=0,
             options={
@@ -272,9 +278,11 @@ def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str 
 
         # Step 3: Run Core ML Stable Diffusion
         print("Starting Core ML inference...", flush=True)
+        neg = "oversaturated, deformed, bad anatomy, bad proportions, blurry, low quality, worst quality, artifacts, noise, text, watermark, mutated, extra limbs, fused fingers"
         # Inference resolution is locked to model bundle (512x512)
         image = pipeline(
             prompt=final_prompt,
+            negative_prompt = neg,
             height=pipeline.height, 
             width=pipeline.width,
             num_inference_steps=20, # Standard steps for Core ML v1.5

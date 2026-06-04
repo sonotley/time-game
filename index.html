@@ -992,7 +992,9 @@ async function prefetchOwlData() {
     else if (document.body.classList.contains("night")) theme = "night";
 
     console.log(`Pre-fetching owl info for ${theme}...`);
-    const response = await fetch(`http://localhost:8081/generate-owl-info?time_of_day=${theme}`);
+    const response = await fetch(`http://localhost:8081/generate-owl-info?time_of_day=${theme}`, {
+      cache: 'no-cache'
+    });
     if (response.ok) {
       state.pendingOwl = await response.json();
       console.log('Owl info pre-fetched and ready!');
@@ -1160,6 +1162,9 @@ document.getElementById('btn-debug').addEventListener('click', async () => {
     document.getElementById('debug-log').textContent = `LAST GEN: ${duration}s`;
     setTimeout(() => { btn.textContent = originalText; }, 3000);
     
+    // Prefetch for the next possible hatch
+    prefetchOwlData();
+    
   } catch (err) {
     console.error('Debug hatch failed:', err);
     alert('Hatch failed. Check server console.');
@@ -1263,6 +1268,9 @@ async function fetchOwlReward() {
       const p = encodeURIComponent(state.pendingOwl.prompt);
       const s = encodeURIComponent(state.pendingOwl.story);
       url += `&prompt=${p}&story=${s}`;
+      
+      // Clear it so it's not reused for the next hatch
+      state.pendingOwl = null;
     }
 
     console.log(`Requesting AI owl from server for ${theme}...`);
