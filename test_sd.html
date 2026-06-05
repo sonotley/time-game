@@ -344,6 +344,11 @@
           <button class="preset-btn" onclick="applyPreset('A sleepy astronaut owl floating in deep space, hyper-detailed 3d model')">Astronaut Owl</button>
         </div>
       </div>
+
+      <div class="form-group">
+        <label for="negative-prompt">Negative Prompt (Optional)</label>
+        <textarea id="negative-prompt" style="height: 70px;" placeholder="borders, text, scary, obscene, boring, nsfw, not an owl, human, oversaturated, deformed, blurry..."></textarea>
+      </div>
       
       <button class="generate-btn" id="btn-generate" onclick="generateImage()">
         <span>Generate Image</span>
@@ -403,6 +408,8 @@
     async function generateImage() {
       const promptEl = document.getElementById('prompt');
       const promptText = promptEl.value.trim();
+      const negativePromptEl = document.getElementById('negative-prompt');
+      const negativePromptText = negativePromptEl.value.trim();
       const statusEl = document.getElementById('status-message');
       const spinner = document.getElementById('loading-spinner');
       const timerEl = document.getElementById('loading-timer');
@@ -432,7 +439,10 @@
       }, 100);
 
       try {
-        const url = `http://localhost:8081/generate-owl?prompt=${encodeURIComponent(promptText)}&story=test`;
+        let url = `http://localhost:8081/generate-owl?prompt=${encodeURIComponent(promptText)}&story=test`;
+        if (negativePromptText) {
+          url += `&negative_prompt=${encodeURIComponent(negativePromptText)}`;
+        }
         const response = await fetch(url, {
           method: 'GET',
           mode: 'cors',
@@ -453,7 +463,7 @@
           downloadBtn.style.display = "flex";
           
           // Add to session history
-          addToHistory(promptText, data.image);
+          addToHistory(promptText, negativePromptText, data.image);
         } else {
           throw new Error("No image data found in response.");
         }
@@ -468,16 +478,17 @@
       }
     }
 
-    function addToHistory(promptText, imageSrc) {
+    function addToHistory(promptText, negativePromptText, imageSrc) {
       const galleryGrid = document.getElementById('gallery-grid');
       
-      const item = { prompt: promptText, image: imageSrc };
+      const item = { prompt: promptText, negativePrompt: negativePromptText, image: imageSrc };
       history.push(item);
 
       const card = document.createElement('div');
       card.className = 'gallery-card';
       card.onclick = () => {
         document.getElementById('prompt').value = promptText;
+        document.getElementById('negative-prompt').value = negativePromptText;
         const resultImg = document.getElementById('result-img');
         const placeholder = document.getElementById('placeholder-graphic');
         const downloadBtn = document.getElementById('btn-download');

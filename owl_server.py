@@ -21,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ART_STYLE = "Fantasy art"
+ART_STYLE = "childrens fantasy art"
 
 # 1. Core ML Pipeline Setup
 print("Loading Core ML Pipeline to Apple Neural Engine (ANE)...", flush=True)
@@ -188,7 +188,7 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
             f"Respond ONLY with a JSON object containing these exact fields:\n"
             f"- 'name': A creative name for the owl starting with the letter '{random.choice(string.ascii_uppercase)}'\n"
             f"- 'story': A fun backstory of at most {story_max_words} words. At least {story_max_words-10} words. \n"
-            f"- 'visual_prompt': A detailed visual description of approximately {prompt_max_words} words, suitable for Stable Diffusion, focusing on physical details, shapes, colors, positioning, and style. Do not mention the name in the prompt.\n"
+            f"- 'visual_prompt': A detailed visual description of no more than {prompt_max_words} words, suitable for Stable Diffusion, focusing on physical details, shapes, colors, positioning, and style. Do not mention the name in the prompt.\n"
         )
         
         print(f"LLM single-pass request to model '{model}'...", flush=True)
@@ -238,7 +238,7 @@ def generate_owl_info(time_of_day: str = "afternoon"):
             style_name = traits.get('style', 'Detailed 3D Claymation')
             final_prompt = (
                 # f"high detail, masterpiece, clean background, vibrant colors. "
-                f"An owl character on a trading card, "
+                f"An owl character, "
                 f"{style_name}. {embellished_prompt}, "
                 f"set during the {time_of_day}"
             )
@@ -256,7 +256,7 @@ def generate_owl_info(time_of_day: str = "afternoon"):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/generate-owl")
-def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str = None):
+def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str = None, negative_prompt: str = None):
     print(f"Received owl generation request for {time_of_day}...", flush=True)
     if not pipeline:
         error_msg = f"Stable Diffusion pipeline is not loaded. Load error: {pipeline_load_error}"
@@ -294,7 +294,7 @@ def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str 
 
         # Step 3: Run Core ML Stable Diffusion
         print("Starting Core ML inference...", flush=True)
-        neg = "borders, text, scary, obscene, boring, nsfw, not an owl, human, oversaturated, deformed, bad anatomy, bad proportions, blurry, low quality, worst quality, artifacts, noise, text, watermark, mutated, extra limbs, fused fingers"
+        neg = negative_prompt if negative_prompt else "borders, text, scary, obscene, boring, nsfw, not an owl, human, oversaturated, deformed, bad anatomy, bad proportions, blurry, low quality, worst quality, artifacts, noise, text, watermark, mutated, extra limbs, fused fingers"
         # Inference resolution is locked to model bundle (512x512)
         image = pipeline(
             prompt=final_prompt,
