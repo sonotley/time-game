@@ -19,6 +19,11 @@ def serve_frontend():
     """Serve the main game page."""
     return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
 
+@app.get("/test-sd", include_in_schema=False)
+def serve_test_sd():
+    """Serve the Stable Diffusion test page."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "test_sd.html"))
+
 # ------- Owl Collection Storage -------
 OWLS_FILE = os.path.join(os.path.dirname(__file__), "owls_collection.json")
 MAX_OWLS = 30
@@ -87,10 +92,11 @@ try:
 
     # 2. Wrap it with Apple's Core ML backend using the downloaded local models
     # We point to the specific 'compiled' directory to avoid ambiguity errors
-    print("Wrapping with Core ML backend (models2/DreamShaper-v8_split-einsum_cn)...", flush=True)
+    print("Wrapping with Core ML backend...", flush=True)
     pipeline = get_coreml_pipe(
         pytorch_pipe=pytorch_pipe,
-        mlpackages_dir="./models2/DreamShaper-v8_split-einsum_cn",
+        # mlpackages_dir="./models2/DreamShaper-v8_split-einsum_cn",
+        mlpackages_dir="./models2/realisticVision-v51VAE_split-einsum_cn",
         model_version="runwayml/stable-diffusion-v1-5",
         compute_unit="ALL" # Targets CPU + GPU + Neural Engine simultaneously
     )
