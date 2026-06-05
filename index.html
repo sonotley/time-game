@@ -974,7 +974,7 @@ const state = {
   step: 1,
   streak: 0,
   clockPerfect: true,
-  owls: (() => { try { return JSON.parse(localStorage.getItem('owls_collection')) || []; } catch(e) { return []; } })(),
+  owls: [],
   pendingOwl: null, // Pre-fetched LLM data for the current round
   isDebug: new URLSearchParams(window.location.search).get('debug') === 'true'
 };
@@ -982,13 +982,28 @@ const state = {
 // Set initial collection count
 document.getElementById('owl-count').textContent = state.owls.length;
 
+// ------- Load Owls from Server (replaces localStorage) -------
+async function loadOwlsFromServer() {
+  try {
+    const res = await fetch('/owls', { cache: 'no-cache' });
+    if (res.ok) {
+      state.owls = await res.json();
+      document.getElementById('owl-count').textContent = state.owls.length;
+      console.log(`Loaded ${state.owls.length} owls from server.`);
+    }
+  } catch (err) {
+    console.warn('Could not load owls from server:', err);
+  } finally {
+    // Clear any leftover localStorage data
+    try { localStorage.removeItem('owls_collection'); } catch (_) {}
+  }
+}
+loadOwlsFromServer();
+
 // ------- Theme Helpers -------
 function getThemeName() {
-  const body = document.body;
-  if (body.classList.contains("morning")) return "morning";
-  if (body.classList.contains("sunset")) return "sunset";
-  if (body.classList.contains("night")) return "night";
-  return "afternoon";
+  const themes = ['morning', 'afternoon', 'sunset', 'night'];
+  return themes.find(t => document.body.classList.contains(t)) || 'afternoon';
 }
 
 // ------- Background Owl Pre-generation -------
@@ -998,7 +1013,7 @@ async function prefetchOwlData() {
     const theme = getThemeName();
 
     console.log(`Pre-fetching owl info for ${theme}...`);
-    const response = await fetch(`http://localhost:8081/generate-owl-info?time_of_day=${theme}`, {
+    const response = await fetch(`/generate-owl-info?time_of_day=${theme}`, {
       cache: 'no-cache'
     });
     if (response.ok) {
@@ -1055,19 +1070,19 @@ function collectOwl(owl) {
   if (state.owls.length > MAX_OWLS) {
     state.owls = state.owls.slice(-MAX_OWLS);
   }
-  
-  // Try saving, dropping oldest items iteratively if quota is exceeded
-  while (state.owls.length > 0) {
-    try {
-      localStorage.setItem('owls_collection', JSON.stringify(state.owls));
-      break; // Successfully saved
-    } catch (e) {
-      console.warn('localStorage full \u2014 dropping oldest owl to free up space.');
-      state.owls.shift(); // Drop the oldest owl
-    }
-  }
-  
+
   document.getElementById('owl-count').textContent = state.owls.length;
+
+  // Persist to server
+  fetch('/owls', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(owl)
+  }).then(res => {
+    if (!res.ok) console.warn('Server rejected owl save:', res.status);
+  }).catch(err => {
+    console.warn('Failed to save owl to server (kept in session):', err);
+  });
 }
 
 function parseOwlText(text) {
@@ -1152,30 +1167,26 @@ function closeOwlCard() {
 }
 
 // Debug Mode: Instant Hatch
-document.getElementById('btn-debug').addEventListener('click', async () => {
-  const btn = document.getElementById('btn-debug');
+document.getElementById('btn-debug').addEventListener('click', async function() {
+  const btn = this;
   const originalText = btn.textContent;
-  
+
   try {
     btn.disabled = true;
     btn.textContent = 'HATCHING...';
     btn.style.opacity = '0.5';
-    
+
     const startTime = performance.now();
     const owl = await fetchOwlReward();
     const duration = ((performance.now() - startTime) / 1000).toFixed(1);
-    
+
     collectOwl(owl);
-    
-    // Open drawer to show the result
     openCollectionDrawer();
     btn.textContent = `DONE (${duration}s)`;
     document.getElementById('debug-log').textContent = `LAST GEN: ${duration}s`;
     setTimeout(() => { btn.textContent = originalText; }, 3000);
-    
-    // Prefetch for the next possible hatch
     prefetchOwlData();
-    
+
   } catch (err) {
     console.error('Debug hatch failed:', err);
     alert('Hatch failed. Check server console.');
@@ -1185,6 +1196,7 @@ document.getElementById('btn-debug').addEventListener('click', async () => {
     btn.style.opacity = '1';
   }
 });
+
 
 // ------- Procedural Fallback SVG Owl Generator -------
 function generateSvgOwl() {
@@ -1270,14 +1282,14 @@ async function fetchOwlReward() {
     const timeoutId = setTimeout(() => controller.abort(), 300000); // 300s cutoff
     const theme = getThemeName();
 
-    let url = `http://localhost:8081/generate-owl?time_of_day=${theme}`;
+    let url = `/generate-owl?time_of_day=${theme}`;
     
     // Use pre-fetched data if available to skip LLM thinking time
     if (state.pendingOwl) {
       console.log('Using pre-fetched owl data to speed up hatching...');
       const p = encodeURIComponent(state.pendingOwl.prompt);
       const s = encodeURIComponent(state.pendingOwl.story);
-      url += `&prompt=${p}&story=${s}`;
+      url += `&prompt=${p}&story_hint=${s}`;
       
       // Clear it so it's not reused for the next hatch
       state.pendingOwl = null;
@@ -1619,12 +1631,46 @@ function renderStep3() {
   }
 }
 
+
+// --- Owl reward card builder (used by renderStep4 and debug button) ---
+function buildOwlRewardCard(owl, duration) {
+  const parsed = parseOwlText(owl.prompt);
+
+  const owlCard = document.createElement('div');
+  owlCard.className = 'owl-reward-card';
+  owlCard.style.cursor = 'pointer';
+  owlCard.addEventListener('click', () => showOwlCard(owl));
+
+  const img = document.createElement('img');
+  img.src = owl.image;
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'owl-prompt';
+  nameEl.textContent = parsed.name;
+
+  const successText = document.createElement('div');
+  successText.className = 'got-owl-text';
+  successText.textContent = '🦉 You hatched a unique Owl!';
+
+  owlCard.append(img, nameEl, successText);
+
+  if (state.isDebug) {
+    document.getElementById('debug-log').textContent = `LAST GEN: ${duration}s`;
+    const debugTime = document.createElement('div');
+    debugTime.style.cssText = 'font-size:10px;color:var(--text-muted);margin-top:4px';
+    debugTime.textContent = `Generated in ${duration}s`;
+    owlCard.appendChild(debugTime);
+  }
+
+  return owlCard;
+}
+
 // --- Step 4: Final Reveal (Hatching screen) ---
 function renderStep4() {
   document.getElementById('step-label').textContent = 'Well done!';
   document.getElementById('question').textContent = 'Put it all together:';
   const a = clearAnswers('single');
-  
+
   const reveal = document.createElement('div');
   reveal.className = 'reveal';
 
@@ -1633,103 +1679,58 @@ function renderStep4() {
   big.textContent = phrase(state.hour, state.minute);
   reveal.appendChild(big);
 
-  // Create the Next button
   const next = document.createElement('button');
   next.className = 'next';
-  next.textContent = 'Next Clock \u2192';
+  next.textContent = 'Next Clock →';
   next.style.marginTop = '10px';
-  next.addEventListener('click', () => {
-    nextStepDelay(newClock);
-  });
+  next.addEventListener('click', () => nextStepDelay(newClock));
   reveal.appendChild(next);
 
   if (state.clockPerfect) {
-    // Disable next button while hatching
     next.disabled = true;
     next.style.opacity = '0.5';
     next.style.cursor = 'not-allowed';
 
-    // Show egg hatching placeholder above the Next button
     const hatching = document.createElement('div');
     hatching.className = 'hatching-container';
-    hatching.innerHTML = `
-      <div class="hatching-egg">\u{1F95A}</div>
-      <div class="hatching-text">Hatching a unique AI Owl character...</div>
-    `;
+    hatching.innerHTML = `<div class="hatching-egg">🥚</div><div class="hatching-text">Hatching a unique AI Owl character...</div>`;
     reveal.insertBefore(hatching, next);
-    
+
     const startTime = performance.now();
-    // Asynchronously generate the owl (calls server or SVG generator fallback)
     fetchOwlReward().then(owl => {
       const duration = ((performance.now() - startTime) / 1000).toFixed(1);
       hatching.remove();
-      
-      // Re-enable next button
       next.disabled = false;
       next.style.opacity = '1';
       next.style.cursor = 'pointer';
-      
-      const owlCard = document.createElement('div');
-      owlCard.className = 'owl-reward-card';
-      owlCard.style.cursor = 'pointer';
-      owlCard.addEventListener('click', () => showOwlCard(owl));
-      
-      const img = document.createElement('img');
-      img.src = owl.image;
-      
-      const parsed = parseOwlText(owl.prompt);
-      const promptText = document.createElement('div');
-      promptText.className = 'owl-prompt';
-      promptText.textContent = parsed.name;
-      
-      const successText = document.createElement('div');
-      successText.className = 'got-owl-text';
-      successText.textContent = '\u{1F989} You hatched a unique Owl!';
-      
-      owlCard.appendChild(img);
-      owlCard.appendChild(promptText);
-      owlCard.appendChild(successText);
 
-      if (state.isDebug) {
-        document.getElementById('debug-log').textContent = `LAST GEN: ${duration}s`;
-        const debugTime = document.createElement('div');
-        debugTime.style.fontSize = '10px';
-        debugTime.style.color = 'var(--text-muted)';
-        debugTime.style.marginTop = '4px';
-        debugTime.textContent = `Generated in ${duration}s`;
-        owlCard.appendChild(debugTime);
-      }
-      
-      // next is now fully initialised — safe to use as anchor
-      reveal.insertBefore(owlCard, next);
-      
+      reveal.insertBefore(buildOwlRewardCard(owl, duration), next);
+
       collectOwl(owl);
       state.streak += 1;
-      
-      const streakBadge = document.getElementById('streak-badge');
       document.getElementById('streak-count').textContent = state.streak;
-      streakBadge.classList.add('show');
-      
+      document.getElementById('streak-badge').classList.add('show');
+
       confettiStart();
       playSuccessSound();
     });
   } else {
-    // Fail path
     state.streak = 0;
     document.getElementById('streak-badge').classList.remove('show');
-    
-    const gotStar = document.createElement('div');
-    gotStar.className = 'got-owl-text';
-    gotStar.style.color = 'var(--text-muted)';
-    gotStar.style.fontSize = '18px';
-    gotStar.textContent = 'Nice work finishing \u2014 try the next one perfectly to hatch an owl!';
-    reveal.insertBefore(gotStar, next);
-    
+
+    const msg = document.createElement('div');
+    msg.className = 'got-owl-text';
+    msg.style.color = 'var(--text-muted)';
+    msg.style.fontSize = '18px';
+    msg.textContent = 'Nice work finishing — try the next one perfectly to hatch an owl!';
+    reveal.insertBefore(msg, next);
+
     playFailureSound();
   }
 
   a.appendChild(reveal);
 }
+
 
 // ------- Audio Synthesis (Web Audio API) -------
 let audioCtx = null;

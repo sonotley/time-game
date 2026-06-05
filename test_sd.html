@@ -439,7 +439,7 @@
       }, 100);
 
       try {
-        let url = `http://localhost:8081/generate-owl?prompt=${encodeURIComponent(promptText)}&story=test`;
+        let url = `http://localhost:8081/generate-owl?prompt=${encodeURIComponent(promptText)}&story_hint=test`;
         if (negativePromptText) {
           url += `&negative_prompt=${encodeURIComponent(negativePromptText)}`;
         }

@@ -1,25 +1,68 @@
 import base64
 from io import BytesIO
 import json
+import os
 import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import torch
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler 
 from python_coreml_stable_diffusion.pipeline import get_coreml_pipe
 import ollama
 import string
-import time
 
 app = FastAPI(title="Owl Character Rewards API")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.get("/", include_in_schema=False)
+def serve_frontend():
+    """Serve the main game page."""
+    return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
+
+# ------- Owl Collection Storage -------
+OWLS_FILE = os.path.join(os.path.dirname(__file__), "owls_collection.json")
+MAX_OWLS = 30
+
+class OwlEntry(BaseModel):
+    prompt: str
+    image: str
+
+def load_owls() -> list:
+    try:
+        with open(OWLS_FILE, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+def save_owls(owls: list):
+    with open(OWLS_FILE, "w") as f:
+        json.dump(owls, f)
+
+@app.get("/owls")
+def get_owls():
+    """Return the full owl collection."""
+    return load_owls()
+
+@app.post("/owls", status_code=201)
+def add_owl(owl: OwlEntry):
+    """Append a new owl to the collection, capped at MAX_OWLS."""
+    owls = load_owls()
+    owls.append(owl.dict())
+    if len(owls) > MAX_OWLS:
+        owls = owls[-MAX_OWLS:]  # Keep only the most recent
+    save_owls(owls)
+    return {"count": len(owls)}
+
+@app.delete("/owls/{index}")
+def delete_owl(index: int):
+    """Remove an owl by its index in the collection."""
+    owls = load_owls()
+    if index < 0 or index >= len(owls):
+        raise HTTPException(status_code=404, detail="Owl index out of range")
+    owls.pop(index)
+    save_owls(owls)
+    return {"count": len(owls)}
+
 
 ART_STYLE = "childrens fantasy art"
 
@@ -90,7 +133,7 @@ def generate_procedural_owl(time_of_day: str):
     acc = random.choice(FALLBACK_OWL_TEMPLATES["accessories"])
     act = random.choice(FALLBACK_OWL_TEMPLATES["actions"])
     
-    base_data = {
+    traits = {
         "style": ART_STYLE,
         "adjective": adj,
         "accessory": acc,
@@ -106,57 +149,14 @@ def generate_procedural_owl(time_of_day: str):
     # Simple fallback story for UI if LLM fails
     fallback_story = f"A {adj} owl is {act}."
     
-    return base_data, fallback_prompt, fallback_story
+    return traits, fallback_prompt, fallback_story
 
-def clean_llm_response(text: str, max_words: int = 20, mode: str = "story"):
-    """
-    Cleans LLM response, joining lines and intelligently truncating at word limits.
-    In 'story' mode, it prefers ending at a full sentence boundary.
-    """
-    if not text: return ""
-
-    # 1. Join all non-empty lines with a space to prevent loss of multi-line stories
-    lines = [line.strip() for line in text.split('\n') if line.strip()]
-    text = " ".join(lines)
-
-    # 2. Remove common conversational intros (e.g., "Sure! Here's your owl:")
-    fillers = ["Sure!", "Here is", "I'd be happy", "Certainly", "Ok, here", "Prompt:"]
-    for filler in fillers:
-        if text.lower().startswith(filler.lower()):
-            # Try to find a colon or a clean break after the filler
-            first_colon = text.find(":")
-            if 0 < first_colon < 100: # Found a colon that likely separates intro from content
-                text = text[first_colon+1:].strip()
-            break
-
-    # 3. Check if it even exceeds the word count
-    words = text.split()
-    if len(words) <= max_words:
-        return text.replace('"', '').strip()
-
-    # 4. Handle Truncation
-    if mode == "story":
-        # Find all punctuation marks that look like sentence ends
-        endings = []
-        for i, char in enumerate(text):
-            if char in [".", "!", "?"]:
-                # Check if it's a real end (followed by space or end of string)
-                if i + 1 == len(text) or text[i+1].isspace():
-                    word_count = len(text[:i+1].split())
-                    endings.append((i, word_count))
-        
-        if endings:
-            # Find the ending closest to our word limit
-            # (We prefer slightly under, but will take slightly over if it's closer)
-            best_idx, _ = min(endings, key=lambda x: abs(x[1] - max_words))
-            
-            # Sanity check: don't pick an ending that is too far beyond the limit
-            if len(text[:best_idx+1].split()) <= max_words + 10:
-                return text[:best_idx+1].replace('"', '').strip()
-
-    # Fallback for prompt mode or if no suitable sentence end was found
-    truncated = " ".join(words[:max_words])
-    return truncated.replace('"', '').strip() + "..."
+def build_owl_prompt(visual_prompt: str, traits: dict, quality_prefix: bool = False) -> str:
+    """Assembles the final SD prompt from LLM output and traits metadata."""
+    style = traits.get('style', ART_STYLE)
+    time_of_day = traits['time_of_day']
+    prefix = "high detail, masterpiece, clean background, vibrant colors. " if quality_prefix else ""
+    return f"{prefix}An owl character, {style}. {visual_prompt}, set during the {time_of_day}"
 
 def get_ollama_model() -> str:
     """Finds an installed Ollama model matching preferred candidates, with fallback."""
@@ -176,7 +176,10 @@ def get_ollama_model() -> str:
         print(f"Warning: Failed to list Ollama models ({e}). Using default fallback.")
     return "llama3.2:1b"
 
-def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_words: int = 35):
+STORY_MAX_WORDS = 50
+PROMPT_MAX_WORDS = 35
+
+def embellish_owl_with_llm(traits: dict):
     try:
         model = get_ollama_model()
         prompt = (
@@ -187,8 +190,8 @@ def embellish_owl_with_llm(traits: dict, story_max_words: int = 50, prompt_max_w
             f"- Time of day: {traits['time_of_day']}\n\n"
             f"Respond ONLY with a JSON object containing these exact fields:\n"
             f"- 'name': A creative name for the owl starting with the letter '{random.choice(string.ascii_uppercase)}'\n"
-            f"- 'story': A fun backstory of at most {story_max_words} words. At least {story_max_words-10} words. \n"
-            f"- 'visual_prompt': A detailed visual description of no more than {prompt_max_words} words, suitable for Stable Diffusion, focusing on physical details, shapes, colors, positioning, and style. Do not mention the name in the prompt.\n"
+            f"- 'story': A fun backstory of at most {STORY_MAX_WORDS} words. At least {STORY_MAX_WORDS - 10} words.\n"
+            f"- 'visual_prompt': A detailed visual description of no more than {PROMPT_MAX_WORDS} words, suitable for Stable Diffusion, focusing on physical details, shapes, colors, positioning, and style. Do not mention the name in the prompt.\n"
         )
         
         print(f"LLM single-pass request to model '{model}'...", flush=True)
@@ -235,28 +238,20 @@ def generate_owl_info(time_of_day: str = "afternoon"):
         embellished_prompt, story = embellish_owl_with_llm(traits)
         
         if embellished_prompt and story:
-            style_name = traits.get('style', 'Detailed 3D Claymation')
-            final_prompt = (
-                # f"high detail, masterpiece, clean background, vibrant colors. "
-                f"An owl character, "
-                f"{style_name}. {embellished_prompt}, "
-                f"set during the {time_of_day}"
-            )
-            final_story = story
-        else:
-            final_prompt = fallback_prompt
-            final_story = fallback_story
-            
-        return {
-            "prompt": final_prompt,
-            "story": final_story
-        }
+            return {"prompt": build_owl_prompt(embellished_prompt, traits), "story": story}
+        return {"prompt": fallback_prompt, "story": fallback_story}
     except Exception as e:
         print(f"Info generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+DEFAULT_NEGATIVE_PROMPT = (
+    "borders, text, scary, obscene, boring, nsfw, not an owl, human, oversaturated, "
+    "deformed, bad anatomy, bad proportions, blurry, low quality, worst quality, "
+    "artifacts, noise, watermark, mutated, extra limbs, fused fingers"
+)
+
 @app.get("/generate-owl")
-def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str = None, negative_prompt: str = None):
+def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story_hint: str = None, negative_prompt: str = None):
     print(f"Received owl generation request for {time_of_day}...", flush=True)
     if not pipeline:
         error_msg = f"Stable Diffusion pipeline is not loaded. Load error: {pipeline_load_error}"
@@ -264,27 +259,18 @@ def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str 
         raise HTTPException(status_code=500, detail=error_msg)
     try:
         # Use provided prompt/story if available (pre-generated), otherwise generate now
-        if prompt and story:
+        if prompt and story_hint:
             print("Using pre-generated owl info.", flush=True)
             final_prompt = prompt
-            final_story = story
+            final_story = story_hint
         else:
-            # Step 1: Generate procedural base
             traits, fallback_prompt, fallback_story = generate_procedural_owl(time_of_day)
-
-            # Step 2: Embellish with LLM
             print("Embellishing owl with LLM...", flush=True)
-            embellished_prompt, story = embellish_owl_with_llm(traits)
+            embellished_prompt, llm_story = embellish_owl_with_llm(traits)
 
-            # Use fallbacks if LLM fails, otherwise MANUALLY ENHANCE the visual prompt
-            if embellished_prompt and story:
-                # We add the style and quality keywords ourselves to ensure consistency
-                style_name = traits.get('style', 'Detailed 3D Claymation')
-                final_prompt = (
-                    f"high detail, masterpiece, clean background, vibrant colors. Owl, an owl, {style_name}. {embellished_prompt}, "
-                    f"set during the {time_of_day}"
-                )
-                final_story = story
+            if embellished_prompt and llm_story:
+                final_prompt = build_owl_prompt(embellished_prompt, traits, quality_prefix=True)
+                final_story = llm_story
             else:
                 final_prompt = fallback_prompt
                 final_story = fallback_story
@@ -292,21 +278,19 @@ def generate_owl(time_of_day: str = "afternoon", prompt: str = None, story: str 
         print(f"Final prompt for Diffusion: {final_prompt}", flush=True)
         print(f"Final story for UI: {final_story}", flush=True)
 
-        # Step 3: Run Core ML Stable Diffusion
         print("Starting Core ML inference...", flush=True)
-        neg = negative_prompt if negative_prompt else "borders, text, scary, obscene, boring, nsfw, not an owl, human, oversaturated, deformed, bad anatomy, bad proportions, blurry, low quality, worst quality, artifacts, noise, text, watermark, mutated, extra limbs, fused fingers"
+        neg = negative_prompt or DEFAULT_NEGATIVE_PROMPT
         # Inference resolution is locked to model bundle (512x512)
         image = pipeline(
             prompt=final_prompt,
-            negative_prompt = neg,
-            height=pipeline.height, 
+            negative_prompt=neg,
+            height=pipeline.height,
             width=pipeline.width,
-            num_inference_steps=20, # Standard steps for Core ML v1.5
+            num_inference_steps=20,  # Standard steps for Core ML v1.5
             guidance_scale=7.5
         ).images[0]
         print("Core ML Inference complete!", flush=True)
 
-        # Step 4: Base64 Encode output
         buffered = BytesIO()
         image.save(buffered, format="JPEG", quality=80)
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
